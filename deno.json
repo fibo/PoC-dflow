@@ -1,0 +1,11 @@
+{
+	"compilerOptions": {
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"strict": true
+	},
+	"fmt": {
+		"useTabs": true,
+		"semiColons": false
+	}
+}
