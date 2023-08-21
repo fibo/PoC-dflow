@@ -2,7 +2,7 @@ const generateId = () => {
 	return crypto.randomUUID().substring(0, 8)
 }
 
-type DflowInObject = Pick<DflowIn, "name">
+export type DflowInObject = Pick<DflowIn, "name">
 
 class DflowIn {
 	name: string
