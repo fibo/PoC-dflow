@@ -6,9 +6,15 @@ type DflowInObject = Pick<DflowIn, "name">
 
 class DflowIn {
 	name: string
+	pipe: DflowPipe | undefined
 
 	constructor({ name }: DflowInObject) {
 		this.name = name
+		this.pipe = undefined
+	}
+
+	connect(pipe: DflowPipe) {
+		this.pipe = pipe
 	}
 
 	toObject(): DflowInObject {
@@ -18,11 +24,13 @@ class DflowIn {
 
 type DflowOutObject = Pick<DflowOut, "name">
 
-class DflowOut {
+export class DflowOut {
 	name: string
+	value: unknown
 
 	constructor({ name }: DflowOutObject) {
 		this.name = name
+		this.value = undefined
 	}
 
 	toObject(): DflowOutObject {
@@ -32,7 +40,7 @@ class DflowOut {
 
 type DflowPipeObject = Pick<DflowPipe, "id" | "from" | "to">
 
-class DflowPipe {
+export class DflowPipe {
 	id: string
 	from: DflowNode["id"] | [nodeId: DflowNode["id"], outPosition: number]
 	to: DflowNode["id"] | [nodeId: DflowNode["id"], inPosition: number]
@@ -62,11 +70,11 @@ type DflowNodeInstance = {
 	id: string
 	name: string
 	ins: DflowIn[]
-	outs: DflowIn[]
+	outs: DflowOut[]
 	toObject(): DflowNodeObject
 }
 
-class DflowNode implements DflowNodeInstance {
+export class DflowNode implements DflowNodeInstance {
 	id: string
 	name: string
 	ins: DflowIn[]
@@ -133,9 +141,7 @@ export class DflowGraph {
 			this.nodes.set(node.id, new DflowNode(nodeDefinition, node.id))
 		}
 
-		for (const pipe of pipes) {
-			const { from, to } = pipe
-
+		for (const { id, from, to } of pipes) {
 			const { sourceNodeId, sourcePosition } = typeof from === "string"
 				? { sourceNodeId: from, sourcePosition: 0 }
 				: { sourceNodeId: from[0], sourcePosition: from[1] }
@@ -168,7 +174,13 @@ export class DflowGraph {
 				continue
 			}
 
-			this.pipes.set(pipe.id, new DflowPipe(pipe))
+			const targetIn = targetNode.ins[targetPosition]
+			if (!targetIn) {
+				continue
+			}
+			const pipe = new DflowPipe({ id, from, to })
+			this.pipes.set(id, new DflowPipe(pipe))
+			targetIn.connect(pipe)
 		}
 	}
 

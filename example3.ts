@@ -10,7 +10,10 @@ const dflow = new DflowStepExecutor([
 	{
 		name: "Math.PI",
 		outs: [{ name: "out" }],
-		fun: "return Math.PI",
+		fun: [
+			"console.log('Math.PI', Math.PI)",
+			"return Math.PI",
+		],
 	},
 ], {
 	nodes: [
