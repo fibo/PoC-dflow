@@ -1,7 +1,7 @@
 import { DflowStepExecutor } from "./executors.ts"
 
-function hello () {
-  console.log('hello')
+function hello() {
+	console.log("hello")
 }
 
 const dflow = new DflowStepExecutor([
@@ -19,11 +19,10 @@ const dflow = new DflowStepExecutor([
 			"return Math.PI",
 		],
 	},
-],[{
-  name: 'hello',
-  fun: hello
-}]
-, {
+], [{
+	name: "hello",
+	fun: hello,
+}], {
 	nodes: [
 		{ id: "dd892e13", name: "Math.PI" },
 		{ id: "558b4cfb", name: "Math.sin" },

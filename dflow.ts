@@ -120,6 +120,58 @@ export class DflowGraph {
 	pipes = new Map<DflowPipe["id"], DflowPipe>()
 	nodeDefinitions = new Map<DflowNodeDefinition["name"], DflowNodeDefinition>()
 
+	static parentNodeIds(
+		nodeId: DflowNode["id"],
+		nodeConnections: Pick<DflowPipe, "from" | "to">[],
+	): DflowNode["id"][] {
+		return nodeConnections
+			.filter(({ to }) =>
+				typeof to === "string" ? to === nodeId : to[0] === nodeId
+			)
+			.map(({ from }) => typeof from === "string" ? from : from[0])
+	}
+
+	/**
+	 * The level of a node is a number that indicates its position in the graph.
+	 *
+	 * @example
+	 *
+	 * ```ts
+	 * const sortNodeIdsByLevel = (
+	 *   nodeIds: DflowNode["id"][],
+	 *   nodeConnections: Pick<DflowPipe, "from" | "to">[],
+	 * ): string[] => {
+	 *   const levelOfNode: Record<
+	 *     DflowNode["id"],
+	 *     ReturnType<typeof DflowGraph.levelOfNode>
+	 *   > = {}
+	 *   for (const nodeId of nodeIds) {
+	 *     levelOfNode[nodeId] = DflowGraph.levelOfNode(nodeId, nodeConnections)
+	 *   }
+	 *   return nodeIds.slice().sort((nodeIdA, nodeIdB) =>
+	 *     (levelOfNode[nodeIdA]) <= levelOfNode[nodeIdB] ? -1 : 1
+	 *   )
+	 * }
+	 * ```
+	 */
+	static levelOfNode(
+		nodeId: DflowNode["id"],
+		nodeConnections: Pick<DflowPipe, "from" | "to">[],
+	): number {
+		const parentsNodeIds = DflowGraph.parentNodeIds(nodeId, nodeConnections)
+		// 1. A node with no parent as level zero.
+		if (parentsNodeIds.length === 0) return 0
+		// 2. Otherwise its level is the max level of its parents plus one.
+		let maxLevel = 0
+		for (const parentNodeId of parentsNodeIds) {
+			maxLevel = Math.max(
+				DflowGraph.levelOfNode(parentNodeId, nodeConnections),
+				maxLevel,
+			)
+		}
+		return maxLevel + 1
+	}
+
 	addNode(name: DflowNode["name"]): DflowNode | undefined {
 		const id = generateId()
 		this.insert({ nodes: [{ name, id }], pipes: [] })
@@ -224,7 +276,7 @@ export class DflowNodeModule implements DflowNodeInstance {
 	id: string
 	name: string
 	ins: DflowIn[]
-	outs: DflowIn[]
+	outs: DflowOut[]
 	node: DflowNode
 	graph: DflowGraph
 

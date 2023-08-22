@@ -2,70 +2,46 @@ import {
 	DflowExecutor,
 	DflowGraph,
 	DflowGraphObject,
-	DflowNodeDefinition,
+	DflowInObject,
 	DflowNode,
+	DflowNodeDefinition,
 	DflowPipe,
-DflowInObject,
 } from "./dflow.ts"
 
-type DflowNodeConnection = Pick<DflowPipe, "from" | "to">
-
-const parentsOfNodeId = (
-	nodeId: string,
-	nodeConnections: DflowNodeConnection[],
-) => {
-	return nodeConnections
-		.filter(({ to }) =>
-			typeof to === "string" ? to === nodeId : to[0] === nodeId
-		)
-		.map(({ from }) => typeof from === "string" ? from : from[0])
-}
-
-const levelOfNodeId = (
-	nodeId: string,
-	nodeConnections: DflowNodeConnection[],
-) => {
-	const parentsNodeIds = parentsOfNodeId(nodeId, nodeConnections)
-	// 1. A node with no parent as level zero.
-	if (parentsNodeIds.length === 0) return 0
-	// 2. Otherwise its level is the max level of its parents plus one.
-	let maxLevel = 0
-	for (const parentNodeId of parentsNodeIds) {
-		const level = levelOfNodeId(parentNodeId, nodeConnections)
-		maxLevel = Math.max(level, maxLevel)
-	}
-	return maxLevel + 1
-}
-
 const sortNodeIdsByLevel = (
-	nodeIds: string[],
-	nodeConnections: DflowNodeConnection[],
+	nodeIds: DflowNode["id"][],
+	nodeConnections: Pick<DflowPipe, "from" | "to">[],
 ): string[] => {
-	const levelOf: Record<string, number> = {}
+	const levelOfNode: Record<
+		DflowNode["id"],
+		ReturnType<typeof DflowGraph.levelOfNode>
+	> = {}
 	for (const nodeId of nodeIds) {
-		levelOf[nodeId] = levelOfNodeId(nodeId, nodeConnections)
+		levelOfNode[nodeId] = DflowGraph.levelOfNode(nodeId, nodeConnections)
 	}
-	return nodeIds.slice().sort((a, b) => (levelOf[a] <= levelOf[b] ? -1 : 1))
+	return nodeIds.slice().sort((nodeIdA, nodeIdB) =>
+		(levelOfNode[nodeIdA]) <= levelOfNode[nodeIdB] ? -1 : 1
+	)
 }
 
 type FunctionNode = {
-  name: string
+	name: string
 	ins?: DflowInObject[]
-  fun: (...args: unknown[]) => unknown
+	fun: (...args: unknown[]) => unknown
 }
 
 export class DflowStepExecutor implements DflowExecutor {
 	status: DflowExecutor["status"]
 	graph: DflowGraph
-	functions: Map<DflowNode['id'], (...args: unknown[]) => unknown>
-	functionNodes: Map<DflowNode['name'], (...args: unknown[]) => unknown>
-	functionNodesIns: Map<DflowNode['name'], DflowInObject[]>
-	modules: Map<DflowNode['id'], DflowStepExecutor>
+	functions: Map<DflowNode["id"], (...args: unknown[]) => unknown>
+	functionNodes: Map<DflowNode["name"], (...args: unknown[]) => unknown>
+	functionNodesIns: Map<DflowNode["name"], DflowInObject[]>
+	modules: Map<DflowNode["id"], DflowStepExecutor>
 	nodeDefinitions: DflowNodeDefinition[]
 
 	constructor(
 		nodeDefinitions: DflowNodeDefinition[],
-    functionNodes: FunctionNode[],
+		functionNodes: FunctionNode[],
 		{ nodes, pipes }: Pick<DflowGraphObject, "nodes" | "pipes">,
 	) {
 		this.status = "initialized"
@@ -77,18 +53,18 @@ export class DflowStepExecutor implements DflowExecutor {
 
 		this.nodeDefinitions = nodeDefinitions
 
-    this.functionNodes = new Map()
-    this.functionNodesIns = new Map()
-    for (const functionNode of functionNodes) {
-this.functionNodes.set(functionNode.name,functionNode.fun)
-this.functionNodesIns.set(functionNode.name,functionNode.ins??[])
-    }
+		this.functionNodes = new Map()
+		this.functionNodesIns = new Map()
+		for (const functionNode of functionNodes) {
+			this.functionNodes.set(functionNode.name, functionNode.fun)
+			this.functionNodesIns.set(functionNode.name, functionNode.ins ?? [])
+		}
 
 		this.functions = new Map()
 		this.modules = new Map()
 	}
 
-async	start() {
+	async start() {
 		this.status = "running"
 
 		for (const node of this.graph.nodes.values()) {
@@ -97,15 +73,15 @@ async	start() {
 				continue
 			}
 
-			const {name, graph, fun, ins = [] } = nodeDefinition
+			const { name, graph, fun, ins = [] } = nodeDefinition
 
-      const functionNode = this.functionNodes.get(name)
-      if (functionNode) {
+			const functionNode = this.functionNodes.get(name)
+			if (functionNode) {
 				this.functions.set(
 					node.id,
-          functionNode
+					functionNode,
 				)
-      } else if (fun) {
+			} else if (fun) {
 				this.functions.set(
 					node.id,
 					new Function(
@@ -116,12 +92,16 @@ async	start() {
 			} else if (graph) {
 				this.modules.set(
 					node.id,
-					new DflowStepExecutor(this.nodeDefinitions,
-         Array.from(this.functionNodes.entries()).map(([name, fun]) => ({name, fun}))
-          , graph),
+					new DflowStepExecutor(
+						this.nodeDefinitions,
+						Array.from(this.functionNodes.entries()).map(([name, fun]) => ({
+							name,
+							fun,
+						})),
+						graph,
+					),
 				)
 			}
-
 		}
 
 		const nodeIds = sortNodeIdsByLevel(
@@ -161,19 +141,19 @@ async	start() {
 
 			const fun = this.functions.get(nodeId)
 			if (fun) {
-      if (fun.constructor.name === 'AsyncFunction') {
-			await fun.apply(args)
-      } else {
-        fun.apply(args)
-      }
+				if (fun.constructor.name === "AsyncFunction") {
+					await fun.apply(args)
+				} else {
+					fun.apply(args)
+				}
 			}
 
-      const mod = this.modules.get(nodeId)
-      if (mod) {
-        // TODO valorizza gli input del modulo
-        await mod.start()
-        // TODO leggi gli output del modulo
-      }
+			const mod = this.modules.get(nodeId)
+			if (mod) {
+				// TODO valorizza gli input del modulo
+				await mod.start()
+				// TODO leggi gli output del modulo
+			}
 		}
 
 		this.status = "idle"
