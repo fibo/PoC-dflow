@@ -128,7 +128,7 @@ export class DflowGraph {
 			.filter(({ to }) =>
 				typeof to === "string" ? to === nodeId : to[0] === nodeId
 			)
-			.map(({ from }) => typeof from === "string" ? from : from[0])
+			.map(({ from }) => (typeof from === "string" ? from : from[0]))
 	}
 
 	/**
@@ -281,8 +281,14 @@ export class DflowNodeModule implements DflowNodeInstance {
 	graph: DflowGraph
 
 	constructor(
-		{ name, ins, outs, nodeDefinitions, nodes, pipes }:
-			DflowNodeModuleDefinition,
+		{
+			name,
+			ins,
+			outs,
+			nodeDefinitions,
+			nodes,
+			pipes,
+		}: DflowNodeModuleDefinition,
 		id = generateId(),
 	) {
 		this.name = name
@@ -299,7 +305,7 @@ export class DflowNodeModule implements DflowNodeInstance {
 	}
 
 	toObject(): DflowNodeModuleObject {
-		return this.node.toObject()
+		return { ...this.node.toObject(), ...this.graph.toObject() }
 	}
 }
 
