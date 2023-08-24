@@ -1,6 +1,15 @@
+// TODO forse anche generateId si puo togliere e mettere negli executor
 const generateId = () => {
 	return crypto.randomUUID().substring(0, 8)
 }
+
+// TODO gli output si possono sicuramente togliere
+// cioe non sono classi ma solo un tipo definito dal nodo
+// for anche gli input, se non serve il loro metodo pipe
+//
+// cosi facendo diventa tutto ultra flessibile, solo nodi e pipe
+//
+// inoltre i nodi avranno in genere un solo output, a meno che siano dei grafi
 
 export type DflowInObject = Pick<DflowIn, "name">
 
@@ -122,9 +131,9 @@ export class DflowGraph {
 
 	static parentNodeIds(
 		nodeId: DflowNode["id"],
-		nodeConnections: Pick<DflowPipe, "from" | "to">[],
+		pipes: Pick<DflowPipe, "from" | "to">[],
 	): DflowNode["id"][] {
-		return nodeConnections
+		return pipes
 			.filter(({ to }) =>
 				typeof to === "string" ? to === nodeId : to[0] === nodeId
 			)
@@ -139,14 +148,14 @@ export class DflowGraph {
 	 * ```ts
 	 * const sortNodeIdsByLevel = (
 	 *   nodeIds: DflowNode["id"][],
-	 *   nodeConnections: Pick<DflowPipe, "from" | "to">[],
+	 *   pipes: Pick<DflowPipe, "from" | "to">[],
 	 * ): string[] => {
 	 *   const levelOfNode: Record<
 	 *     DflowNode["id"],
 	 *     ReturnType<typeof DflowGraph.levelOfNode>
 	 *   > = {}
 	 *   for (const nodeId of nodeIds) {
-	 *     levelOfNode[nodeId] = DflowGraph.levelOfNode(nodeId, nodeConnections)
+	 *     levelOfNode[nodeId] = DflowGraph.levelOfNode(nodeId, pipes)
 	 *   }
 	 *   return nodeIds.slice().sort((nodeIdA, nodeIdB) =>
 	 *     (levelOfNode[nodeIdA]) <= levelOfNode[nodeIdB] ? -1 : 1
@@ -156,16 +165,16 @@ export class DflowGraph {
 	 */
 	static levelOfNode(
 		nodeId: DflowNode["id"],
-		nodeConnections: Pick<DflowPipe, "from" | "to">[],
+		pipes: Pick<DflowPipe, "from" | "to">[],
 	): number {
-		const parentsNodeIds = DflowGraph.parentNodeIds(nodeId, nodeConnections)
+		const parentsNodeIds = DflowGraph.parentNodeIds(nodeId, pipes)
 		// 1. A node with no parent as level zero.
 		if (parentsNodeIds.length === 0) return 0
 		// 2. Otherwise its level is the max level of its parents plus one.
 		let maxLevel = 0
 		for (const parentNodeId of parentsNodeIds) {
 			maxLevel = Math.max(
-				DflowGraph.levelOfNode(parentNodeId, nodeConnections),
+				DflowGraph.levelOfNode(parentNodeId, pipes),
 				maxLevel,
 			)
 		}

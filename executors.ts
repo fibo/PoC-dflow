@@ -5,30 +5,19 @@ import {
 	DflowInObject,
 	DflowNode,
 	DflowNodeDefinition,
-	DflowPipe,
 } from "./dflow.ts"
-
-const sortNodeIdsByLevel = (
-	nodeIds: DflowNode["id"][],
-	nodeConnections: Pick<DflowPipe, "from" | "to">[],
-): string[] => {
-	const levelOfNode: Record<
-		DflowNode["id"],
-		ReturnType<typeof DflowGraph.levelOfNode>
-	> = {}
-	for (const nodeId of nodeIds) {
-		levelOfNode[nodeId] = DflowGraph.levelOfNode(nodeId, nodeConnections)
-	}
-	return nodeIds.slice().sort((nodeIdA, nodeIdB) =>
-		(levelOfNode[nodeIdA]) <= levelOfNode[nodeIdB] ? -1 : 1
-	)
-}
 
 type FunctionNode = {
 	name: string
 	ins?: DflowInObject[]
 	fun: (...args: unknown[]) => unknown
 }
+
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncFunction/AsyncFunction
+const AsyncFunction = async function () {}.constructor
+
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/GeneratorFunction/GeneratorFunction
+// const GeneratorFunction = function* () {}.constructor;
 
 export class DflowStepExecutor implements DflowExecutor {
 	status: DflowExecutor["status"]
@@ -64,9 +53,7 @@ export class DflowStepExecutor implements DflowExecutor {
 		this.modules = new Map()
 	}
 
-	async start() {
-		this.status = "running"
-
+	prepare() {
 		for (const node of this.graph.nodes.values()) {
 			const nodeDefinition = this.graph.nodeDefinitions.get(node.name)
 			if (!nodeDefinition) {
@@ -77,10 +64,7 @@ export class DflowStepExecutor implements DflowExecutor {
 
 			const functionNode = this.functionNodes.get(name)
 			if (functionNode) {
-				this.functions.set(
-					node.id,
-					functionNode,
-				)
+				this.functions.set(node.id, functionNode)
 			} else if (fun) {
 				this.functions.set(
 					node.id,
@@ -103,11 +87,26 @@ export class DflowStepExecutor implements DflowExecutor {
 				)
 			}
 		}
+	}
 
-		const nodeIds = sortNodeIdsByLevel(
-			Array.from(this.graph.nodes.keys()),
-			Array.from(this.graph.pipes.values()),
+	nodeIdsSortedByLevel() {
+		const nodeIds = Array.from(this.graph.nodes.keys())
+		const pipes = Array.from(this.graph.pipes.values())
+
+		const levelOfNode: Record<
+			DflowNode["id"],
+			ReturnType<typeof DflowGraph.levelOfNode>
+		> = {}
+		for (const nodeId of nodeIds) {
+			levelOfNode[nodeId] = DflowGraph.levelOfNode(nodeId, pipes)
+		}
+		return nodeIds.sort((nodeIdA, nodeIdB) =>
+			levelOfNode[nodeIdA] <= levelOfNode[nodeIdB] ? -1 : 1
 		)
+	}
+
+	async run() {
+		const nodeIds = this.nodeIdsSortedByLevel()
 
 		NODES:
 		for (const nodeId of nodeIds) {
@@ -141,7 +140,8 @@ export class DflowStepExecutor implements DflowExecutor {
 
 			const fun = this.functions.get(nodeId)
 			if (fun) {
-				if (fun.constructor.name === "AsyncFunction") {
+				console.info("execute function node", nodeId, "args", ...args)
+				if (fun.constructor === AsyncFunction.constructor) {
 					await fun.apply(args)
 				} else {
 					fun.apply(args)
@@ -155,7 +155,12 @@ export class DflowStepExecutor implements DflowExecutor {
 				// TODO leggi gli output del modulo
 			}
 		}
+	}
 
+	async start() {
+		this.status = "running"
+		this.prepare()
+		await this.run()
 		this.status = "idle"
 	}
 
