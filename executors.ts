@@ -5,6 +5,7 @@ import {
 	DflowInObject,
 	DflowNode,
 	DflowNodeDefinition,
+	DflowPipe,
 } from "./dflow.ts"
 
 type FunctionNode = {
@@ -16,6 +17,7 @@ type FunctionNode = {
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncFunction/AsyncFunction
 const AsyncFunction = async function () {}.constructor
 
+// TODO
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/GeneratorFunction/GeneratorFunction
 // const GeneratorFunction = function* () {}.constructor;
 
@@ -27,6 +29,11 @@ export class DflowStepExecutor implements DflowExecutor {
 	functionNodesIns: Map<DflowNode["name"], DflowInObject[]>
 	modules: Map<DflowNode["id"], DflowStepExecutor>
 	nodeDefinitions: DflowNodeDefinition[]
+	outMap: Map<string, unknown>
+
+	static outId(pipeFrom: DflowPipe["from"]) {
+		return typeof pipeFrom === "string" ? pipeFrom : pipeFrom.join()
+	}
 
 	constructor(
 		nodeDefinitions: DflowNodeDefinition[],
@@ -51,6 +58,7 @@ export class DflowStepExecutor implements DflowExecutor {
 
 		this.functions = new Map()
 		this.modules = new Map()
+		this.outMap = new Map()
 	}
 
 	prepare() {
@@ -87,6 +95,52 @@ export class DflowStepExecutor implements DflowExecutor {
 				)
 			}
 		}
+
+		// TODO
+		// devo fare una cosa del genere che facevo prima nella graph.insert
+		// cioe mi preparo le connessioni tra gli input e i pipe
+		// in modo da ricavare il valore dell out
+		//
+		// for (const { id, from, to } of pipes) {
+		//   const { sourceNodeId, sourcePosition } =
+		//     typeof from === "string"
+		//       ? { sourceNodeId: from, sourcePosition: 0 }
+		//       : { sourceNodeId: from[0], sourcePosition: from[1] };
+		//   const sourceNode = this.nodes.get(sourceNodeId);
+		//   if (!sourceNode) {
+		//     continue;
+		//   }
+		//   const sourceNodeDefinition = this.nodeDefinitions.get(sourceNode.name);
+		//   if (!sourceNodeDefinition) {
+		//     continue;
+		//   }
+		//   const sourceOutDefinition = sourceNodeDefinition.outs?.[sourcePosition];
+		//   if (!sourceOutDefinition) {
+		//     continue;
+		//   }
+
+		//   const { targetNodeId, targetPosition } =
+		//     typeof to === "string"
+		//       ? { targetNodeId: to, targetPosition: 0 }
+		//       : { targetNodeId: to[0], targetPosition: to[1] };
+		//   const targetNode = this.nodes.get(targetNodeId);
+		//   if (!targetNode) {
+		//     continue;
+		//   }
+		//   const targetNodeDefinition = this.nodeDefinitions.get(targetNode.name);
+		//   if (!targetNodeDefinition) {
+		//     continue;
+		//   }
+		//   const targetOutDefinition = targetNodeDefinition.ins?.[targetPosition];
+		//   if (!targetOutDefinition) {
+		//     continue;
+		//   }
+
+		//   const targetIn = targetNode.ins[targetPosition];
+		//   if (!targetIn) {
+		//     continue;
+		//   }
+		//   }
 	}
 
 	nodeIdsSortedByLevel() {
@@ -111,6 +165,7 @@ export class DflowStepExecutor implements DflowExecutor {
 		NODES:
 		for (const nodeId of nodeIds) {
 			const node = this.graph.nodes.get(nodeId)
+			console.log(node)
 			if (!node) {
 				continue NODES
 			}
@@ -121,30 +176,21 @@ export class DflowStepExecutor implements DflowExecutor {
 				if (!pipe) {
 					continue INS
 				}
-				const { sourceNodeId, sourcePosition } = typeof pipe.from === "string"
-					? { sourceNodeId: pipe.from, sourcePosition: 0 }
-					: { sourceNodeId: pipe.from[0], sourcePosition: pipe.from[1] }
-				const sourceNode = this.graph.nodes.get(sourceNodeId)
-
-				if (!sourceNode) {
-					continue INS
-				}
-
-				const sourceNodeOut = sourceNode.outs[sourcePosition]
-				if (!sourceNodeOut) {
-					continue INS
-				}
-
-				args.push(sourceNodeOut.value)
+				const outId = DflowStepExecutor.outId(pipe.from)
+				args.push(this.outMap.get(outId))
 			}
 
+			console.info("execute node", nodeId, "args", args)
+
 			const fun = this.functions.get(nodeId)
+
 			if (fun) {
-				console.info("execute function node", nodeId, "args", ...args)
 				if (fun.constructor === AsyncFunction.constructor) {
-					await fun.apply(args)
+					const data = await fun.apply(args)
+					this.outMap.set(DflowStepExecutor.outId(nodeId), data)
 				} else {
-					fun.apply(args)
+					const data = fun.apply(args)
+					this.outMap.set(DflowStepExecutor.outId(nodeId), data)
 				}
 			}
 

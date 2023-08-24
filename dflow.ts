@@ -15,15 +15,9 @@ export type DflowInObject = Pick<DflowIn, "name">
 
 class DflowIn {
 	name: string
-	pipe: DflowPipe | undefined
 
 	constructor({ name }: DflowInObject) {
 		this.name = name
-		this.pipe = undefined
-	}
-
-	connect(pipe: DflowPipe) {
-		this.pipe = pipe
 	}
 
 	toObject(): DflowInObject {
@@ -93,7 +87,7 @@ export class DflowNode implements DflowNodeInstance {
 
 	constructor(
 		{ ins = [], outs = [], fun, name }: DflowNodeDefinition,
-		id = generateId(),
+		id: DflowNode["id"],
 	) {
 		this.id = id
 		this.name = name
@@ -203,45 +197,8 @@ export class DflowGraph {
 		}
 
 		for (const { id, from, to } of pipes) {
-			const { sourceNodeId, sourcePosition } = typeof from === "string"
-				? { sourceNodeId: from, sourcePosition: 0 }
-				: { sourceNodeId: from[0], sourcePosition: from[1] }
-			const sourceNode = this.nodes.get(sourceNodeId)
-			if (!sourceNode) {
-				continue
-			}
-			const sourceNodeDefinition = this.nodeDefinitions.get(sourceNode.name)
-			if (!sourceNodeDefinition) {
-				continue
-			}
-			const sourceOutDefinition = sourceNodeDefinition.outs?.[sourcePosition]
-			if (!sourceOutDefinition) {
-				continue
-			}
-
-			const { targetNodeId, targetPosition } = typeof to === "string"
-				? { targetNodeId: to, targetPosition: 0 }
-				: { targetNodeId: to[0], targetPosition: to[1] }
-			const targetNode = this.nodes.get(targetNodeId)
-			if (!targetNode) {
-				continue
-			}
-			const targetNodeDefinition = this.nodeDefinitions.get(targetNode.name)
-			if (!targetNodeDefinition) {
-				continue
-			}
-			const targetOutDefinition = targetNodeDefinition.ins?.[targetPosition]
-			if (!targetOutDefinition) {
-				continue
-			}
-
-			const targetIn = targetNode.ins[targetPosition]
-			if (!targetIn) {
-				continue
-			}
 			const pipe = new DflowPipe({ id, from, to })
-			this.pipes.set(id, new DflowPipe(pipe))
-			targetIn.connect(pipe)
+			this.pipes.set(id, pipe)
 		}
 	}
 
@@ -270,18 +227,18 @@ export class DflowGraph {
 	}
 }
 
-type DflowNodeModuleObject = Pick<DflowNodeModule, "id" | "name">
+type DflowNodeGraphObject = Pick<DflowNodeGraph, "id" | "name">
 
-type DflowNodeModuleDefinition = {
-	name: DflowNodeModule["name"]
-	ins?: DflowInObject[]
-	outs?: DflowOutObject[]
+type DflowNodeGraphDefinition = {
+	name: DflowNodeGraph["name"]
+	ins: DflowInObject[]
+	outs: DflowOutObject[]
 	nodes: DflowNodeObject[]
 	pipes: DflowPipeObject[]
 	nodeDefinitions: DflowNodeDefinition[]
 }
 
-export class DflowNodeModule implements DflowNodeInstance {
+export class DflowNodeGraph implements DflowNodeInstance {
 	id: string
 	name: string
 	ins: DflowIn[]
@@ -297,8 +254,8 @@ export class DflowNodeModule implements DflowNodeInstance {
 			nodeDefinitions,
 			nodes,
 			pipes,
-		}: DflowNodeModuleDefinition,
-		id = generateId(),
+		}: DflowNodeGraphDefinition,
+		id: DflowNodeGraph["id"],
 	) {
 		this.name = name
 		const node = new DflowNode({ name, ins, outs }, id)
@@ -309,11 +266,20 @@ export class DflowNodeModule implements DflowNodeInstance {
 
 		const graph = new DflowGraph()
 		graph.addNodeDefinitions(nodeDefinitions)
+
+		const ioNodeDefinitions: DflowNodeDefinition[] = []
+		for (const { name, ...rest } of ins ?? []) {
+			ioNodeDefinitions.push({ name, outs: [{ name, ...rest }] })
+		}
+		for (const { name, ...rest } of outs ?? []) {
+			ioNodeDefinitions.push({ name, ins: [{ name, ...rest }] })
+		}
+
 		graph.insert({ nodes, pipes })
 		this.graph = graph
 	}
 
-	toObject(): DflowNodeModuleObject {
+	toObject(): DflowNodeGraphObject {
 		return { ...this.node.toObject(), ...this.graph.toObject() }
 	}
 }

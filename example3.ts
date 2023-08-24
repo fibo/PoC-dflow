@@ -9,13 +9,11 @@ const dflow = new DflowStepExecutor(
 		{
 			name: "Math.sin",
 			ins: [{ name: "arg" }],
-			outs: [{ name: "out" }],
 			fun: "return Math.sin(arg)",
 		},
 		{
 			name: "Math.PI",
-			outs: [{ name: "out" }],
-			fun: ["console.log('Math.PI', Math.PI)", "return Math.PI"],
+			fun: ["console.info('Math.PI', Math.PI)", "return Math.PI"],
 		},
 	],
 	[
