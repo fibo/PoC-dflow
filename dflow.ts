@@ -5,11 +5,17 @@ type NonNegativeInteger = number
 type DflowPin = DflowID | [nodeId: DflowID, position: NonNegativeInteger]
 
 type DflowPipe = {
-	from: DflowID
-	to: DflowID
+	from: DflowPin
+	to: DflowPin
 }
 
+/**
+ * Args can be
+ *   - ['argName1', 'argName2', ...]
+ *   - Infinity, when there are an indefinite number of arguments
+ */
 type DflowArgs = DflowName[] | typeof Infinity
+
 type DflowOuts = DflowName[]
 
 type DflowNode = {
@@ -72,13 +78,17 @@ export class Dflow implements DflowModule {
 		return typeof arg === "string" ? arg : arg.join(";")
 	}
 
-	static looksLikeAsyncFunction(arg: DflowNodeFunction["fun"]) {
-		return Dflow.nodeFunctionBody(arg).includes("await")
+	// static looksLikeAsyncGenerator(fun: DflowNodeFunction["fun"]) {
+	// 	return fun.includes("await") && fun.includes("yield")
+	// }
+
+	static looksLikeAsyncFunction(fun: DflowNodeFunction["fun"]) {
+		return fun.includes("await") && !fun.includes("yield")
 	}
 
-	static looksLikeGenerator(arg: DflowNodeFunction["fun"]) {
-		return Dflow.nodeFunctionBody(arg).includes("yield")
-	}
+	// static looksLikeGenerator(fun: DflowNodeFunction["fun"]) {
+	// 	return !fun.includes("await") && fun.includes("yield")
+	// }
 
 	get nodes(): DflowGraph["nodes"] {
 		return Array.from(this.nodesMap.entries()).map(([id, name]) => ({
@@ -157,16 +167,34 @@ export class Dflow implements DflowModule {
 		this.insert({ nodes: [], pipes: [{ from, to }] })
 	}
 
+	static nodeIdOfPin(pin: DflowPin): DflowID {
+		return typeof pin === "string" ? pin : pin[0]
+	}
+
+	static positionOfPin(pin: DflowPin): NonNegativeInteger | undefined {
+		return typeof pin === "string" ? undefined : pin[1]
+	}
+
+	static nodeIdsOfPipe({
+		from: source,
+		to: target,
+	}: DflowPipe): [sourceId: DflowID, targetId: DflowID] {
+		return [Dflow.nodeIdOfPin(source), Dflow.nodeIdOfPin(target)]
+	}
+
 	insert({ nodes, pipes }: DflowGraph) {
 		for (const node of nodes) {
 			this.nodesMap.set(node.id, node.name)
 		}
 		for (const pipe of pipes) {
-			this.pipesSet.add(pipe)
+			const [sourceId, targetId] = Dflow.nodeIdsOfPipe(pipe)
+			if (this.nodesMap.has(sourceId) && this.nodesMap.has(targetId)) {
+				this.pipesSet.add(pipe)
+			}
 		}
 	}
 
-	registerNodeFunction({ name, args, fun }: DflowNodeFunction) {
+	setFunction({ name, args, fun }: DflowNodeFunction) {
 		if (args) this.argsMap.set(name, args)
 		if (Dflow.looksLikeAsyncFunction(fun)) {
 			if (Array.isArray(args)) {
@@ -178,18 +206,6 @@ export class Dflow implements DflowModule {
 				this.functionsMap.set(
 					name,
 					Dflow.AsyncFunction(Dflow.nodeFunctionBody(fun)),
-				)
-			}
-		} else if (Dflow.looksLikeGenerator(fun)) {
-			if (Array.isArray(args)) {
-				this.functionsMap.set(
-					name,
-					Dflow.GeneratorFunction(...args, Dflow.nodeFunctionBody(fun)),
-				)
-			} else {
-				this.functionsMap.set(
-					name,
-					Dflow.GeneratorFunction(Dflow.nodeFunctionBody(fun)),
 				)
 			}
 		} else {
@@ -209,7 +225,7 @@ export class Dflow implements DflowModule {
 
 	registerModule({ name, args, outs, nodes, pipes }: DflowModule) {
 		if (args) this.argsMap.set(name, args)
-		if (outs) this.outsMap.set(name, args)
+		if (outs) this.outsMap.set(name, outs)
 		this.graphsMap.set(name, { nodes, pipes })
 	}
 
@@ -220,4 +236,7 @@ export class Dflow implements DflowModule {
 
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/GeneratorFunction/GeneratorFunction
 	static GeneratorFunction = function* () {}.constructor
+
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGeneratorFunction
+	static AsyncGeneratorFunction = async function* () {}.constructor
 }

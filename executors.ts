@@ -186,10 +186,10 @@ export class DflowStepExecutor implements DflowExecutor {
 
 			if (fun) {
 				if (fun.constructor === AsyncFunction.constructor) {
-					const data = await fun.apply(args)
+					const data = await fun.apply(null, args)
 					this.outMap.set(DflowStepExecutor.outId(nodeId), data)
 				} else {
-					const data = fun.apply(args)
+					const data = fun.apply(null, args)
 					this.outMap.set(DflowStepExecutor.outId(nodeId), data)
 				}
 			}
