@@ -1,71 +1,115 @@
-type DflowID = string
-type DflowName = string
-type NonNegativeInteger = number
+export type DflowId = string
+export type DflowName = string
 
-type DflowPin = DflowID | [nodeId: DflowID, position: NonNegativeInteger]
+export type DflowPin = DflowId | [nodeId: DflowId, position: number]
 
-type DflowPipe = {
+export type DflowPinId = DflowId | `${DflowId},${number}`
+
+export type DflowPipe = {
 	from: DflowPin
 	to: DflowPin
 }
 
-/**
- * Args can be
- *   - ['argName1', 'argName2', ...]
- *   - Infinity, when there are an indefinite number of arguments
- */
-type DflowArgs = DflowName[] | typeof Infinity
+export type DflowArgs = DflowName[]
 
-type DflowOuts = DflowName[]
+export type DflowOuts = DflowName[]
 
-type DflowNode = {
+export type DflowNode = {
 	name: DflowName
 	args?: DflowArgs
 }
 
-type DflowNodeFunction = DflowNode & { fun: string | string[] }
+export type DflowCode = string | string[]
 
-type DflowGraph = {
+export type DflowNodeFunc = DflowNode & { code: DflowCode }
+
+export type DflowGraph = {
 	nodes: {
-		id: DflowID
+		id: DflowId
 		name: DflowName
 	}[]
 	pipes: DflowPipe[]
 }
 
-type DflowModule =
+export type DflowNodeGraph =
 	& DflowNode
 	& DflowGraph
 	& {
 		outs?: DflowOuts
 	}
 
-export class Dflow implements DflowModule {
+export class DflowErrorBrokenPipe extends Error {
+	pipe: DflowPipe
+	static message(pipe: DflowPipe) {
+		return `Broken DflowPipe from=${pipe.from} to=${pipe.to}`
+	}
+	constructor(pipe: DflowPipe) {
+		super(DflowErrorBrokenPipe.message(pipe))
+		this.pipe = pipe
+	}
+	toValue() {
+		return {
+			errorName: "DflowErrorBrokenPipe",
+			pipe: this.pipe,
+		}
+	}
+	toJSON() {
+		return this.toValue()
+	}
+}
+
+export class DflowErrorNodeOverride extends Error {
+	nodeName: DflowName
+	static message(name: DflowName) {
+		return `Cannot override existing DflowNode name=${name}`
+	}
+	constructor(name: DflowName) {
+		super(DflowErrorNodeOverride.message(name))
+		this.nodeName = name
+	}
+	toValue() {
+		return {
+			errorName: "DflowErrorNodeOverride",
+			nodeName: this.nodeName,
+		}
+	}
+	toJSON() {
+		return this.toValue()
+	}
+}
+
+export type DflowFunc =
+	| typeof Dflow.Func
+	| typeof Dflow.AsyncFunc
+	| typeof Dflow.GeneratorFunc
+
+export class Dflow implements DflowNodeGraph {
 	name: DflowName
 	args?: DflowArgs
 	outs?: DflowOuts
 
-	nodesMap = new Map<DflowID, DflowName>()
-	functionsMap = new Map<
-		DflowName,
-		| typeof Dflow.Function
-		| typeof Dflow.AsyncFunction
-		| typeof Dflow.GeneratorFunction
-	>()
-	pipesSet = new Set<DflowPipe>()
-	argsMap = new Map<DflowName, DflowArgs>()
-	outsMap = new Map<DflowName, DflowOuts>()
-	graphsMap = new Map<DflowName, DflowGraph>()
+	nodeNameById = new Map<DflowId, DflowName>()
+	funcByName = new Map<DflowName, DflowFunc>()
+	/** Map of pipes, key=to value=from */
+	pipesMap = new Map<DflowPinId, DflowPinId>()
+	argsByName = new Map<DflowName, DflowArgs>()
+	outsByName = new Map<DflowName, DflowOuts>()
+	graphByName = new Map<DflowName, DflowGraph>()
 
-	constructor(mod?: DflowModule) {
-		this.name = mod?.name ?? "root"
-		if (mod) {
-			this.args = mod.args
-			this.outs = mod.outs
-		}
+	constructor(
+		{ name, args, outs, nodes, pipes }: DflowNodeGraph = {
+			name: Dflow.rootName,
+			nodes: [],
+			pipes: [],
+		},
+	) {
+		this.name = name
+		this.args = args
+		this.outs = outs
+		this.insert({ nodes, pipes })
 	}
 
-	toValue(): DflowModule {
+	toValue(): DflowNodeGraph {
 		return {
 			name: this.name,
 			args: this.args,
@@ -74,31 +118,26 @@ export class Dflow implements DflowModule {
 		}
 	}
 
-	static nodeFunctionBody(arg: DflowNodeFunction["fun"]) {
-		return typeof arg === "string" ? arg : arg.join(";")
+	toJSON() {
+		return this.toValue()
 	}
 
-	// static looksLikeAsyncGenerator(fun: DflowNodeFunction["fun"]) {
-	// 	return fun.includes("await") && fun.includes("yield")
-	// }
-
-	static looksLikeAsyncFunction(fun: DflowNodeFunction["fun"]) {
-		return fun.includes("await") && !fun.includes("yield")
+	get nodeIds(): DflowId[] {
+		return Array.from(this.nodeNameById.keys())
 	}
-
-	// static looksLikeGenerator(fun: DflowNodeFunction["fun"]) {
-	// 	return !fun.includes("await") && fun.includes("yield")
-	// }
 
 	get nodes(): DflowGraph["nodes"] {
-		return Array.from(this.nodesMap.entries()).map(([id, name]) => ({
+		return Array.from(this.nodeNameById.entries()).map(([id, name]) => ({
 			id,
 			name,
 		}))
 	}
 
 	get pipes(): DflowGraph["pipes"] {
-		return Array.from(this.pipesSet.values())
+		return Array.from(this.pipesMap.entries()).map(([toId, fromId]) => ({
+			from: Dflow.idToPin(fromId),
+			to: Dflow.idToPin(toId),
+		}))
 	}
 
 	get graph(): DflowGraph {
@@ -108,7 +147,161 @@ export class Dflow implements DflowModule {
 		}
 	}
 
-	static parentNodeIds(nodeId: DflowID, pipes: DflowPipe[]): DflowID[] {
+	addNode(name: DflowNode["name"], id = Dflow.generateId()): DflowId {
+		this.nodeNameById.set(id, name)
+		return id
+	}
+
+	addPipe(pipe: DflowPipe) {
+		if (this.isBrokenPipe(pipe)) {
+			throw new DflowErrorBrokenPipe(pipe)
+		} else {
+			this.pipesMap.set(Dflow.pinToId(pipe.to), Dflow.pinToId(pipe.from))
+		}
+	}
+
+	pipesOfSourceId(sourceId: DflowPinId): DflowPipe[] {
+		const pipes: DflowPipe[] = []
+		for (const [toId, fromId] of this.pipesMap.entries()) {
+			if (fromId === sourceId) {
+				pipes.push({
+					from: Dflow.idToPin(fromId),
+					to: Dflow.idToPin(toId),
+				})
+			}
+		}
+		return pipes
+	}
+
+	pipeOfTargetId(targetId: DflowPinId): DflowPipe | undefined {
+		for (const [toId, fromId] of this.pipesMap.entries()) {
+			if (toId === targetId) {
+				return {
+					from: Dflow.idToPin(fromId),
+					to: Dflow.idToPin(toId),
+				}
+			}
+		}
+	}
+
+	insert({ nodes, pipes }: DflowGraph) {
+		for (const node of nodes) {
+			this.addNode(node.name, node.id)
+		}
+		for (const pipe of pipes) {
+			this.addPipe(pipe)
+		}
+	}
+
+	isBrokenPipe(pipe: DflowPipe) {
+		const [sourceId, targetId] = Dflow.nodeIdsOfPipe(pipe)
+		return !this.nodeNameById.has(sourceId) || !this.nodeNameById.has(targetId)
+	}
+
+	hasNode(name: DflowName) {
+		return this.funcByName.has(name) || this.graphByName.has(name)
+	}
+
+	setFunc(name: DflowName, func: DflowFunc, args?: DflowArgs) {
+		if (this.hasNode(name)) {
+			throw new DflowErrorNodeOverride(name)
+		}
+		if (args) this.argsByName.set(name, args)
+		this.funcByName.set(name, func)
+	}
+
+	setNodeFunc({ name, args, code }: DflowNodeFunc) {
+		if (Dflow.looksLikeAsyncCode(code)) {
+			if (Array.isArray(args)) {
+				this.setFunc(
+					name,
+					Dflow.AsyncFunc(...args, Dflow.funcBody(code)),
+					args,
+				)
+			} else {
+				this.setFunc(name, Dflow.AsyncFunc(Dflow.funcBody(code)))
+			}
+		} else {
+			if (Array.isArray(args)) {
+				this.setFunc(name, Dflow.Func(...args, Dflow.funcBody(code)), args)
+			} else {
+				this.setFunc(name, Dflow.Func(Dflow.funcBody(code)), args)
+			}
+		}
+	}
+
+	setNodeGraph({ name, args, outs, nodes, pipes }: DflowNodeGraph) {
+		if (this.hasNode(name)) {
+			throw new DflowErrorNodeOverride(name)
+		}
+		if (args) this.argsByName.set(name, args)
+		if (outs) this.outsByName.set(name, outs)
+		this.graphByName.set(name, { nodes, pipes })
+	}
+
+	static rootName = "root"
+
+	static Func = function () {}.constructor
+
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncFunction/AsyncFunction
+	static AsyncFunc = async function () {}.constructor
+
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/GeneratorFunction/GeneratorFunction
+	static GeneratorFunc = function* () {}.constructor
+
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGeneratorFunction
+	static AsyncGeneratorFunc = async function* () {}.constructor
+
+	static isFunc(func: unknown) {
+		return func?.constructor === Dflow.Func
+	}
+
+	static isAsyncFunc(func: unknown) {
+		return func?.constructor === Dflow.AsyncFunc
+	}
+
+	static looksLikeAsyncGeneratorCode(arg: DflowCode) {
+		return arg.includes("await") && arg.includes("yield")
+	}
+
+	static looksLikeAsyncCode(arg: DflowCode) {
+		return arg.includes("await") && !arg.includes("yield")
+	}
+
+	static looksLikeGeneratorCode(arg: DflowCode) {
+		return !arg.includes("await") && arg.includes("yield")
+	}
+
+	static pinToId(pin: DflowPin): DflowPinId {
+		return typeof pin === "string" ? pin : pin[1] === 0 ? pin[0] : pin.join()
+	}
+
+	static idToPin(id: DflowPinId): DflowPin {
+		const [nodeId, positionStr] = id.split(",")
+		const position = Number(positionStr)
+		return position ? [nodeId, position] : nodeId
+	}
+
+	static funcBody(arg: DflowCode) {
+		return typeof arg === "string" ? arg : arg.join(";")
+	}
+
+	static nodeIdOfPin(pin: DflowPin): DflowId {
+		return typeof pin === "string" ? pin : pin[0]
+	}
+
+	static positionOfPin(pin: DflowPin): number | undefined {
+		return typeof pin === "string" ? undefined : pin[1]
+	}
+
+	static nodeIdsOfPipe({
+		from: source,
+		to: target,
+	}: DflowPipe): [sourceId: DflowId, targetId: DflowId] {
+		return [Dflow.nodeIdOfPin(source), Dflow.nodeIdOfPin(target)]
+	}
+
+	static parentNodeIds(nodeId: DflowId, pipes: DflowPipe[]): DflowId[] {
 		return pipes
 			.filter(({ to }) =>
 				typeof to === "string" ? to === nodeId : to[0] === nodeId
@@ -116,7 +309,7 @@ export class Dflow implements DflowModule {
 			.map(({ from }) => (typeof from === "string" ? from : from[0]))
 	}
 
-	static generateId(): DflowID {
+	static generateId(): DflowId {
 		return crypto.randomUUID().substring(0, 8)
 	}
 
@@ -126,14 +319,11 @@ export class Dflow implements DflowModule {
 	 * @example
 	 *
 	 * ```ts
-	 * const sortNodeIdsByLevel = (
-	 *   nodeIds: DflowID[],
+	 * const nodeIdsSortedByLevel = (
+	 *   nodeIds: DflowId[],
 	 *   pipes: DflowPipe[],
-	 * ): DflowID[] => {
-	 *   const levelOfNode: Record<
-	 *     DflowID,
-	 *     ReturnType<typeof Dflow.levelOfNode>
-	 *   > = {}
+	 * ): DflowId[] => {
+	 *   const levelOfNode: Record<DflowId, number> = {}
 	 *   for (const nodeId of nodeIds) {
 	 *     levelOfNode[nodeId] = Dflow.levelOfNode(nodeId, pipes)
 	 *   }
@@ -143,7 +333,7 @@ export class Dflow implements DflowModule {
 	 * }
 	 * ```
 	 */
-	static levelOfNode(nodeId: DflowID, pipes: DflowPipe[]): NonNegativeInteger {
+	static levelOfNode(nodeId: DflowId, pipes: DflowPipe[]): number {
 		const parentsNodeIds = Dflow.parentNodeIds(nodeId, pipes)
 		// 1. A node with no parent as level zero.
 		if (parentsNodeIds.length === 0) return 0
@@ -157,86 +347,4 @@ export class Dflow implements DflowModule {
 		// in quel caso ritorno level Infinity
 		return maxLevel + 1
 	}
-
-	addNode(name: DflowNode["name"], id = Dflow.generateId()): DflowID {
-		this.insert({ nodes: [{ name, id }], pipes: [] })
-		return id
-	}
-
-	addPipe({ from, to }: DflowPipe) {
-		this.insert({ nodes: [], pipes: [{ from, to }] })
-	}
-
-	static nodeIdOfPin(pin: DflowPin): DflowID {
-		return typeof pin === "string" ? pin : pin[0]
-	}
-
-	static positionOfPin(pin: DflowPin): NonNegativeInteger | undefined {
-		return typeof pin === "string" ? undefined : pin[1]
-	}
-
-	static nodeIdsOfPipe({
-		from: source,
-		to: target,
-	}: DflowPipe): [sourceId: DflowID, targetId: DflowID] {
-		return [Dflow.nodeIdOfPin(source), Dflow.nodeIdOfPin(target)]
-	}
-
-	insert({ nodes, pipes }: DflowGraph) {
-		for (const node of nodes) {
-			this.nodesMap.set(node.id, node.name)
-		}
-		for (const pipe of pipes) {
-			const [sourceId, targetId] = Dflow.nodeIdsOfPipe(pipe)
-			if (this.nodesMap.has(sourceId) && this.nodesMap.has(targetId)) {
-				this.pipesSet.add(pipe)
-			}
-		}
-	}
-
-	setFunction({ name, args, fun }: DflowNodeFunction) {
-		if (args) this.argsMap.set(name, args)
-		if (Dflow.looksLikeAsyncFunction(fun)) {
-			if (Array.isArray(args)) {
-				this.functionsMap.set(
-					name,
-					Dflow.AsyncFunction(...args, Dflow.nodeFunctionBody(fun)),
-				)
-			} else {
-				this.functionsMap.set(
-					name,
-					Dflow.AsyncFunction(Dflow.nodeFunctionBody(fun)),
-				)
-			}
-		} else {
-			if (Array.isArray(args)) {
-				this.functionsMap.set(
-					name,
-					Dflow.Function(...args, Dflow.nodeFunctionBody(fun)),
-				)
-			} else {
-				this.functionsMap.set(
-					name,
-					Dflow.Function(Dflow.nodeFunctionBody(fun)),
-				)
-			}
-		}
-	}
-
-	registerModule({ name, args, outs, nodes, pipes }: DflowModule) {
-		if (args) this.argsMap.set(name, args)
-		if (outs) this.outsMap.set(name, outs)
-		this.graphsMap.set(name, { nodes, pipes })
-	}
-
-	static Function = function () {}.constructor
-
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncFunction/AsyncFunction
-	static AsyncFunction = async function () {}.constructor
-
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/GeneratorFunction/GeneratorFunction
-	static GeneratorFunction = function* () {}.constructor
-
-	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGeneratorFunction
-	static AsyncGeneratorFunction = async function* () {}.constructor
 }

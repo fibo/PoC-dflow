@@ -1,38 +1,41 @@
-import { DflowStepExecutor } from "./executors.ts"
+import { DflowStepExecutor } from "./step-executor.ts"
 
 function hello() {
-	console.log("hello")
+	console.log("hello world")
 }
 
-const dflow = new DflowStepExecutor(
-	[
-		{
-			name: "Math.sin",
-			ins: [{ name: "arg" }],
-			fun: "return Math.sin(arg)",
-		},
-		{
-			name: "Math.PI",
-			fun: ["console.info('Math.PI', Math.PI)", "return Math.PI"],
-		},
-	],
-	[
-		{
-			name: hello.name,
-			fun: hello,
-		},
-	],
-	{
-		nodes: [
-			{ id: "dd892e13", name: "Math.PI" },
-			{ id: "558b4cfb", name: "Math.sin" },
-			{ id: "cd3e2b9f", name: "graph" },
-			{ id: "dc3e29fb", name: "hello" },
-		],
-		pipes: [{ id: "0ca72f01", from: "dd892e13", to: "558b4cfb" }],
-	},
-)
+const dflow = new DflowStepExecutor()
 
-dflow.start()
+dflow.setNodeFunc({
+	name: "Math.sin",
+	args: ["arg"],
+	code: "return Math.sin(arg)",
+})
 
-console.log(JSON.stringify(dflow.toObject(), null, 2))
+dflow.setNodeFunc({
+	name: "Math.PI",
+	code: ["console.info('Math.PI', Math.PI)", "return Math.PI"],
+})
+
+dflow.setNodeGraph({
+	name: "empty",
+	nodes: [],
+	pipes: [],
+})
+
+dflow.setFunc("hello", hello)
+
+dflow.insert({
+	nodes: [
+		{ id: "dd892e13", name: "Math.PI" },
+		{ id: "558b4cfb", name: "Math.sin" },
+		{ id: "cd3e2b9f", name: "graph" },
+		{ id: "dc3e29fb", name: "hello" },
+		{ id: "5854bfbc", name: "empty" },
+	],
+	pipes: [{ from: "dd892e13", to: "558b4cfb" }],
+})
+
+await dflow.run()
+
+console.log(JSON.stringify(dflow, null, 2))

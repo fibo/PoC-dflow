@@ -1,32 +1,28 @@
-import { DflowGraph } from "./dflow.ts"
+import { Dflow } from "./dflow.ts"
 
-const graph = new DflowGraph()
+const dflow = new Dflow()
 
-graph.addNodeDefinitions([
-	{
-		name: "Math.sin",
-		ins: [{ name: "arg" }],
-		outs: [{ name: "out" }],
-		fun: "return Math.sin(arg)",
-	},
-	{
-		name: "Math.PI",
-		outs: [{ name: "out" }],
-		fun: "return Math.PI",
-	},
-	{
-		name: "graph",
-		graph: {
-			nodes: [
-				{ id: "dd892e13", name: "Math.PI" },
-				{ id: "558b4cfb", name: "Math.sin" },
-				{ id: "cd3e2b9f", name: "graph" },
-			],
-			pipes: [{ id: "0ca72f01", from: "dd892e13", to: "558b4cfb" }],
-		},
-	},
-])
+dflow.setNodeFunc({
+	name: "Math.sin",
+	args: ["arg"],
+	code: "return Math.sin(arg)",
+})
 
-graph.addNode("graph")
+dflow.setNodeFunc({
+	name: "Math.PI",
+	code: "return Math.PI",
+})
 
-console.log(JSON.stringify(graph.toObject(), null, 2))
+dflow.setNodeGraph({
+	name: "graph",
+	nodes: [
+		{ id: "dd892e13", name: "Math.PI" },
+		{ id: "558b4cfb", name: "Math.sin" },
+		{ id: "cd3e2b9f", name: "graph" },
+	],
+	pipes: [{ from: "dd892e13", to: "558b4cfb" }],
+})
+
+dflow.addNode("graph")
+
+console.log(JSON.stringify(dflow, null, 2))
