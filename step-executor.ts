@@ -1,14 +1,9 @@
-import {
-  Dflow,
-  DflowGraphInstanceMap,
-  DflowId,
-  DflowNodeGraph,
-} from "./dflow.ts";
+import { Dflow } from "./dflow.ts";
 
 export class DflowStepExecutor extends Dflow {
-  graphInstanceById: DflowGraphInstanceMap<DflowStepExecutor> = new Map();
+  graphInstanceById: Dflow.GraphInstanceMap<DflowStepExecutor> = new Map();
 
-  addNodeGraph(nodeGraph: DflowNodeGraph, id = Dflow.generateId()) {
+  addNodeGraph(nodeGraph: Dflow.NodeGraph, id = Dflow.generateId()) {
     const subGraph = new DflowStepExecutor(nodeGraph);
     subGraph.inheritFuncs({
       funcByName: new Map(this.funcByName),
@@ -22,7 +17,7 @@ export class DflowStepExecutor extends Dflow {
     const nodeIds = this.nodeIds;
     const pipes = this.pipes;
 
-    const levelOfNode: Record<DflowId, number> = {};
+    const levelOfNode: Record<Dflow.Id, number> = {};
     for (const nodeId of nodeIds) {
       levelOfNode[nodeId] = Dflow.levelOfNode(nodeId, pipes);
     }
