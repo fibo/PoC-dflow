@@ -1,7 +1,11 @@
+declare namespace Dflow {
+  export type Id = string;
+}
+
 export type DflowId = string;
 export type DflowName = string;
 
-export type DflowPin = DflowId | [nodeId: DflowId, position: number];
+export type DflowPin = Dflow.Id | [nodeId: DflowId, position: number];
 
 export type DflowPinId = DflowId | `${DflowId},${number}`;
 
@@ -31,84 +35,12 @@ export type DflowGraph = {
   pipes: DflowPipe[];
 };
 
+export type DflowGraphInstanceMap<T extends Dflow> = Map<DflowId, T>;
+
 export type DflowNodeGraph = DflowNode &
   DflowGraph & {
     outs?: DflowOuts;
   };
-
-export class DflowErrorBrokenPipe extends Error {
-  pipe: DflowPipe;
-  static message(pipe: DflowPipe) {
-    return `Broken DflowPipe from=${pipe.from} to=${pipe.to}`;
-  }
-  constructor(pipe: DflowPipe) {
-    super(DflowErrorBrokenPipe.message(pipe));
-    this.pipe = pipe;
-  }
-  toValue() {
-    return {
-      errorName: "DflowErrorBrokenPipe",
-      pipe: this.pipe,
-    };
-  }
-  toJSON() {
-    return this.toValue();
-  }
-}
-
-export class DflowErrorNodeExecution extends Error {
-  nodeId: DflowId;
-  nodeName: DflowName;
-  nodeErrorMessage: Error["message"];
-  static message(
-    nodeId: DflowId,
-    nodeName: DflowName,
-    nodeErrorMessage: Error["message"]
-  ) {
-    return `Execution error on DflowNode name=${nodeName} id=${nodeId} error.message=${nodeErrorMessage}`;
-  }
-  constructor(
-    nodeId: DflowId,
-    nodeName: DflowName,
-    nodeErrorMessage: Error["message"]
-  ) {
-    super(DflowErrorNodeExecution.message(nodeId, nodeName, nodeErrorMessage));
-    this.nodeId = nodeId;
-    this.nodeName = nodeName;
-    this.nodeErrorMessage = nodeErrorMessage;
-  }
-  toValue() {
-    return {
-      errorName: "DflowErrorNodeExecution",
-      nodeId: this.nodeId,
-      nodeName: this.nodeName,
-      nodeErrorMessage: this.nodeErrorMessage,
-    };
-  }
-  toJSON() {
-    return this.toValue();
-  }
-}
-
-export class DflowErrorNodeOverride extends Error {
-  nodeName: DflowName;
-  static message(name: DflowName) {
-    return `Cannot override existing DflowNode name=${name}`;
-  }
-  constructor(name: DflowName) {
-    super(DflowErrorNodeOverride.message(name));
-    this.nodeName = name;
-  }
-  toValue() {
-    return {
-      errorName: "DflowErrorNodeOverride",
-      nodeName: this.nodeName,
-    };
-  }
-  toJSON() {
-    return this.toValue();
-  }
-}
 
 export type DflowFunc =
   | typeof Dflow.Func
@@ -120,21 +52,60 @@ export class Dflow implements DflowNodeGraph {
   args?: DflowArgs;
   outs?: DflowOuts;
 
-  hasAsyncNodes: boolean;
+  argNodeNames = new Set<DflowName>();
 
-  nodeNameById = new Map<DflowId, DflowName>();
   funcByName = new Map<DflowName, DflowFunc>();
 
-  /** Map of pipes, key=to value=from */
-  pipesMap = new Map<DflowPinId, DflowPinId>();
+  /**
+   * A context to bound the DflowFunc execution.
+   *   - key: Func name
+   *   - value: context, if any
+   */
+  funcContext = new Map<DflowName, unknown>();
+
+  graphByName = new Map<DflowName, DflowGraph>();
+
+  /**
+   * A map of Dflow sub-graph instances.
+   *
+   * @example
+   * ```ts
+   * class DflowExecutor extends Dflow {
+   *   // Override graphInstanceById to get the proper instance type.
+   *   graphInstanceById: DflowGraphInstanceMap<DflowExecutor> = new Map();
+   *
+   *   // Add a sub-graph with same instance of same class.
+   *   addSubGraph(graph: DflowNodeGraph, id = Dflow.generateId()) {
+   *     const subGraph = new DflowExecutor(graph);
+   *     subGraph.inheritFuncs({
+   *       // Notice that maps are cloned.
+   *       funcByName: new Map(this.funcByName),
+   *       funcContext: new Map(this.funcContext),
+   *       nodeArgsByName: new Map(this.nodeArgsByName),
+   *     });
+   *     this.graphInstanceById.set(id, subGraph);
+   *   }
+   * }
+   * ```
+   */
+  graphInstanceById: DflowGraphInstanceMap<Dflow> = new Map();
+
+  nodeArgsByName = new Map<DflowName, DflowArgs>();
+
+  nodeNameById = new Map<DflowId, DflowName>();
+
+  nodeOutsByName = new Map<DflowName, DflowOuts>();
+
+  outNodeNames = new Set<DflowName>();
 
   outsData: Map<DflowPinId, unknown>;
 
-  argNodeNames = new Set<DflowName>();
-  outNodeNames = new Set<DflowName>();
-  nodeArgsByName = new Map<DflowName, DflowArgs>();
-  nodeOutsByName = new Map<DflowName, DflowOuts>();
-  graphByName = new Map<DflowName, DflowGraph>();
+  /**
+   * Map of pipes.
+   *  - key=targetId, pipe.to
+   *  - value=sourceId, pipe.from
+   */
+  pipesMap = new Map<DflowPinId, DflowPinId>();
 
   constructor(
     { name, args, outs, nodes, pipes }: DflowNodeGraph = {
@@ -158,24 +129,43 @@ export class Dflow implements DflowNodeGraph {
     this.outsData = new Map();
 
     this.insert({ nodes, pipes });
-    this.hasAsyncNodes = false;
-  }
-
-  toValue(): DflowNodeGraph {
-    return {
-      name: this.name,
-      args: this.args,
-      outs: this.outs,
-      ...this.graph,
-    };
-  }
-
-  toJSON() {
-    return this.toValue();
   }
 
   get data() {
     return Object.fromEntries(this.outsData.entries());
+  }
+
+  get graph(): DflowGraph {
+    return {
+      nodes: this.nodes,
+      pipes: this.pipes,
+    };
+  }
+
+  /**
+   * A Dflow has async nodes if some of its DflowFunc is async or if some of its sub-graphs is async.
+   */
+  get hasAsyncNodes() {
+    const seenNodeName = new Set();
+    for (const [nodeId, nodeName] of this.nodeNameById.entries()) {
+      // 1. Check sub-graph instances (by nodeId) first.
+      const graph = this.graphInstanceById.get(nodeId);
+      if (graph?.hasAsyncNodes) return true;
+
+      // 2. Then check DflowFunc (by nodeName).
+      if (seenNodeName.has(nodeName)) {
+        // Avoid double checking.
+        continue;
+      }
+      seenNodeName.add(nodeName);
+      const func = this.funcByName.get(nodeName);
+      if (func) {
+        if (Dflow.isAsyncFunc(func) || Dflow.isAsyncGeneratorFunc(func)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   get nodeIds(): DflowId[] {
@@ -196,13 +186,6 @@ export class Dflow implements DflowNodeGraph {
     }));
   }
 
-  get graph(): DflowGraph {
-    return {
-      nodes: this.nodes,
-      pipes: this.pipes,
-    };
-  }
-
   addNode(name: DflowNode["name"], id = Dflow.generateId()): DflowId {
     this.nodeNameById.set(id, name);
     return id;
@@ -210,10 +193,58 @@ export class Dflow implements DflowNodeGraph {
 
   addPipe(pipe: DflowPipe) {
     if (this.isBrokenPipe(pipe)) {
-      throw new DflowErrorBrokenPipe(pipe);
+      throw new Dflow.Error.BrokenPipe(pipe);
     } else {
       this.pipesMap.set(Dflow.pinToId(pipe.to), Dflow.pinToId(pipe.from));
     }
+  }
+
+  insert({ nodes, pipes }: DflowGraph) {
+    for (const node of nodes) {
+      this.addNode(node.name, node.id);
+    }
+    for (const pipe of pipes) {
+      this.addPipe(pipe);
+    }
+  }
+
+  hasNode(name: DflowName) {
+    return (
+      this.argNodeNames.has(name) ||
+      this.outNodeNames.has(name) ||
+      this.funcByName.has(name) ||
+      this.graphByName.has(name)
+    );
+  }
+
+  /**
+   * Inherits funcs; do not override this args and outs.
+   */
+  inheritFuncs({
+    funcByName,
+    funcContext,
+    nodeArgsByName,
+  }: Pick<Dflow, "funcByName" | "funcContext" | "nodeArgsByName">) {
+    for (const [funcName, func] of funcByName.entries()) {
+      if (
+        !(this.args ?? []).includes(funcName) &&
+        !(this.outs ?? []).includes(funcName) &&
+        func
+      ) {
+        const funcArgs = nodeArgsByName.get(funcName);
+        if (funcArgs) {
+          this.nodeArgsByName.set(funcName, funcArgs);
+        }
+        const context = funcContext.get(funcName);
+        if (context) this.funcContext.set(funcName, context);
+        this.funcByName.set(funcName, func);
+      }
+    }
+  }
+
+  isBrokenPipe(pipe: DflowPipe) {
+    const [sourceId, targetId] = Dflow.nodeIdsOfPipe(pipe);
+    return !this.nodeNameById.has(sourceId) || !this.nodeNameById.has(targetId);
   }
 
   pipesOfSourceId(sourceId: DflowPinId): DflowPipe[] {
@@ -240,38 +271,12 @@ export class Dflow implements DflowNodeGraph {
     }
   }
 
-  insert({ nodes, pipes }: DflowGraph) {
-    for (const node of nodes) {
-      this.addNode(node.name, node.id);
-    }
-    for (const pipe of pipes) {
-      this.addPipe(pipe);
-    }
-  }
-
-  isBrokenPipe(pipe: DflowPipe) {
-    const [sourceId, targetId] = Dflow.nodeIdsOfPipe(pipe);
-    return !this.nodeNameById.has(sourceId) || !this.nodeNameById.has(targetId);
-  }
-
-  hasNode(name: DflowName) {
-    return (
-      this.argNodeNames.has(name) ||
-      this.outNodeNames.has(name) ||
-      this.funcByName.has(name) ||
-      this.graphByName.has(name)
-    );
-  }
-
   setFunc(name: DflowName, func: DflowFunc, args?: DflowArgs) {
     this.setNode({ name, args });
     if (this.hasNode(name)) {
       throw new DflowErrorNodeOverride(name);
     }
     if (args) this.nodeArgsByName.set(name, args);
-    if (Dflow.isAsyncFunc(func) || Dflow.isAsyncGeneratorFunc(func)) {
-      this.hasAsyncNodes = true;
-    }
     this.funcByName.set(name, func);
   }
 
@@ -315,6 +320,19 @@ export class Dflow implements DflowNodeGraph {
     this.setNode({ name, args });
     if (outs) this.nodeOutsByName.set(name, outs);
     this.graphByName.set(name, { nodes, pipes });
+  }
+
+  toJSON() {
+    return this.toValue();
+  }
+
+  toValue(): DflowNodeGraph {
+    return {
+      name: this.name,
+      args: this.args,
+      outs: this.outs,
+      ...this.graph,
+    };
   }
 
   static rootName = "root";
@@ -433,4 +451,82 @@ export class Dflow implements DflowNodeGraph {
     // in quel caso ritorno level Infinity
     return maxLevel + 1;
   }
+
+  static Error = {
+    BrokenPipe: class DflowErrorBrokenPipe extends Error {
+      pipe: DflowPipe;
+      constructor(pipe: DflowPipe) {
+        super(DflowErrorBrokenPipe.message(pipe));
+        this.pipe = pipe;
+      }
+      toJSON() {
+        return this.toValue();
+      }
+      toValue() {
+        return {
+          errorName: "DflowErrorBrokenPipe",
+          pipe: this.pipe,
+        };
+      }
+      static message(pipe: DflowPipe) {
+        return `Broken DflowPipe from=${pipe.from} to=${pipe.to}`;
+      }
+    },
+
+    NodeExecution: class DflowErrorNodeExecution extends Error {
+      nodeErrorMessage: Error["message"];
+      nodeId: DflowId;
+      nodeName: DflowName;
+      constructor(
+        nodeId: DflowId,
+        nodeName: DflowName,
+        nodeErrorMessage: Error["message"]
+      ) {
+        super(
+          DflowErrorNodeExecution.message(nodeId, nodeName, nodeErrorMessage)
+        );
+        this.nodeId = nodeId;
+        this.nodeName = nodeName;
+        this.nodeErrorMessage = nodeErrorMessage;
+      }
+      toJSON() {
+        return this.toValue();
+      }
+      toValue() {
+        return {
+          errorName: "DflowErrorNodeExecution",
+          nodeId: this.nodeId,
+          nodeName: this.nodeName,
+          nodeErrorMessage: this.nodeErrorMessage,
+        };
+      }
+      static message(
+        nodeId: DflowId,
+        nodeName: DflowName,
+        nodeErrorMessage: Error["message"]
+      ) {
+        return `Execution error on DflowNode name=${nodeName} id=${nodeId} error.message=${nodeErrorMessage}`;
+      }
+    },
+
+    NodeOverride: class DflowErrorNodeOverride extends Error {
+      nodeName: DflowName;
+      constructor(name: DflowName) {
+        super(DflowErrorNodeOverride.message(name));
+        this.nodeName = name;
+      }
+      toJSON() {
+        return this.toValue();
+      }
+      toValue() {
+        return {
+          errorName: "DflowErrorNodeOverride",
+          nodeName: this.nodeName,
+        };
+      }
+      static message(name: DflowName) {
+        return `Cannot override existing DflowNode name=${name}`;
+      }
+    },
+  };
 }
