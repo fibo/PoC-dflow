@@ -20,4 +20,4 @@ const nodeId2 = dflow.addNode("Math.sin")
 
 dflow.addPipe({ from: nodeId1, to: nodeId2 })
 
-console.log(JSON.stringify(dflow, null, 2))
+console.info(JSON.stringify(dflow, null, 2))

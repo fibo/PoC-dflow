@@ -1,7 +1,7 @@
 import { DflowStepExecutor } from "./step-executor.ts"
 
 function hello() {
-	console.log("hello world")
+	console.info("hello world")
 }
 
 const dflow = new DflowStepExecutor()
@@ -38,4 +38,4 @@ dflow.insert({
 
 await dflow.run()
 
-console.log(JSON.stringify(dflow, null, 2))
+console.info(JSON.stringify(dflow, null, 2))

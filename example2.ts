@@ -25,4 +25,4 @@ dflow.setNodeGraph({
 
 dflow.addNode("graph")
 
-console.log(JSON.stringify(dflow, null, 2))
+console.info(JSON.stringify(dflow, null, 2))

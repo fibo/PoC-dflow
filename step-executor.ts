@@ -1,17 +1,16 @@
-import { Dflow, DflowId, DflowNodeGraph, DflowPinId } from "./dflow.ts"
+import {
+	Dflow,
+	DflowErrorNodeExecution,
+	DflowId,
+	DflowNodeGraph,
+} from "./dflow.ts"
 
 export class DflowStepExecutor extends Dflow {
-	dataMap: Map<DflowPinId, unknown>
 	subGraphInstanceById: Map<DflowId, DflowStepExecutor>
 
 	constructor(arg?: DflowNodeGraph) {
 		super(arg)
-		this.dataMap = new Map()
 		this.subGraphInstanceById = new Map()
-	}
-
-	get data() {
-		return Object.fromEntries(this.dataMap.entries())
 	}
 
 	addNodeGraph(
@@ -26,13 +25,14 @@ export class DflowStepExecutor extends Dflow {
 				!(nodeGraph.outs ?? []).includes(parentFuncName) &&
 				parentFunc
 			) {
-				const parentFuncArgs = this.argsByName.get(parentFuncName)
+				const parentFuncArgs = this.nodeArgsByName.get(parentFuncName)
 				if (parentFuncArgs) {
-					subGraph.argsByName.set(parentFuncName, parentFuncArgs)
+					subGraph.nodeArgsByName.set(parentFuncName, parentFuncArgs)
 				}
 				subGraph.funcByName.set(parentFuncName, parentFunc)
 			}
 		}
+		if (subGraph.hasAsyncNodes) this.hasAsyncNodes = true
 		this.subGraphInstanceById.set(id, subGraph)
 		return subGraph
 	}
@@ -57,8 +57,8 @@ export class DflowStepExecutor extends Dflow {
 					this.addNodeGraph(
 						{
 							name: nodeName,
-							args: this.argsByName.get(nodeName),
-							outs: this.outsByName.get(nodeName),
+							args: this.nodeArgsByName.get(nodeName),
+							outs: this.nodeOutsByName.get(nodeName),
 							...graph,
 						},
 						nodeId,
@@ -75,22 +75,13 @@ export class DflowStepExecutor extends Dflow {
 			}
 			const argValues: unknown[] = []
 
-			const nodeArgNames = this.argsByName.get(nodeName)
-			console.log("run node", nodeId, nodeName, nodeArgNames)
+			const nodeArgNames = this.nodeArgsByName.get(nodeName)
 
 			if (nodeArgNames) {
 				for (let position = 0; position < nodeArgNames.length; position++) {
-					console.log(
-						"position",
-						position,
-						"pin",
-						Dflow.pinToId([nodeId, position]),
-					)
 					const pipe = this.pipeOfTargetId(Dflow.pinToId([nodeId, position]))
-					console.log("pipe", pipe)
 					if (pipe) {
-						console.log("data", this.dataMap.get(Dflow.pinToId(pipe.from)))
-						argValues.push(this.dataMap.get(Dflow.pinToId(pipe.from)))
+						argValues.push(this.outsData.get(Dflow.pinToId(pipe.from)))
 					} else {
 						argValues.push(undefined)
 					}
@@ -100,28 +91,26 @@ export class DflowStepExecutor extends Dflow {
 			const func = this.funcByName.get(nodeName)
 
 			if (func) {
-				console.info(
-					"execute func",
-					`name=${nodeName}`,
-					`id=${nodeId}`,
-					`argValues=${argValues}`,
-				)
-
-				if (Dflow.isAsyncFunc(func)) {
-					const data = await func.apply(null, argValues)
-					this.dataMap.set(nodeId, data)
-				} else if (Dflow.isFunc(func)) {
-					console.log("func", nodeName, func, argValues)
-					// const data = func.apply(null, argValues);
-					// this.dataMap.set(nodeId, data);
+				try {
+					if (Dflow.isAsyncFunc(func)) {
+						const data = await func.apply(null, argValues)
+						this.outsData.set(nodeId, data)
+					} else if (Dflow.isFunc(func)) {
+						const data = func.apply(null, argValues)
+						this.outsData.set(nodeId, data)
+					}
+				} catch (error) {
+					if (error instanceof Error) {
+						throw new DflowErrorNodeExecution(nodeId, nodeName, error.message)
+					} else {
+						throw error
+					}
 				}
 			}
 
 			const subGraph = this.subGraphInstanceById.get(nodeId)
 
 			if (subGraph) {
-				console.info("execute graph", `name=${nodeName}`, `id=${nodeId}`)
-
 				// 1. Set graph input values.
 				if (nodeArgNames) {
 					for (const subGraphNodeId of subGraph.nodeIds) {
@@ -133,13 +122,7 @@ export class DflowStepExecutor extends Dflow {
 								position++
 							) {
 								if (nodeName === nodeArgNames[position]) {
-									console.info(
-										"set graph input",
-										`name=${nodeName}`,
-										`id=${subGraphNodeId}`,
-										`value=${argValues[position]}`,
-									)
-									subGraph.dataMap.set(
+									subGraph.outsData.set(
 										Dflow.pinToId([subGraphNodeId, position]),
 										argValues[position],
 									)
@@ -149,9 +132,13 @@ export class DflowStepExecutor extends Dflow {
 					}
 				}
 				// 2. Execute graph.
-				await subGraph.run()
+				if (subGraph.hasAsyncNodes) {
+					await subGraph.run()
+				} else {
+					subGraph.run()
+				}
 				// 3. Get graph output values.
-				const nodeOutNames = this.outsByName.get(nodeName)
+				const nodeOutNames = this.nodeOutsByName.get(nodeName)
 				if (nodeOutNames) {
 					for (const subGraphNodeId of subGraph.nodeIds) {
 						const nodeName = subGraph.nodeNameById.get(subGraphNodeId)
@@ -164,15 +151,9 @@ export class DflowStepExecutor extends Dflow {
 								if (nodeName === nodeOutNames[position]) {
 									const pipe = subGraph.pipeOfTargetId(subGraphNodeId)
 									if (pipe) {
-										console.info(
-											"get graph output",
-											`name=${nodeName}`,
-											`id=${subGraphNodeId}`,
-											`value=${subGraph.dataMap.get(Dflow.pinToId(pipe.from))}`,
-										)
-										this.dataMap.set(
+										this.outsData.set(
 											Dflow.pinToId([nodeId, position]),
-											subGraph.dataMap.get(Dflow.pinToId(pipe.from)),
+											subGraph.outsData.get(Dflow.pinToId(pipe.from)),
 										)
 									}
 								}
