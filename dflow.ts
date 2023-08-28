@@ -2,9 +2,6 @@ export declare namespace Dflow {
   /** A Dflow.Func is a function, an async function, a generator or an async generator */
   export type Func = DflowFunc;
 
-  /** A Dflow.Id is a string that identifies a Dflow item */
-  export type Id = string;
-
   export type Name = string;
 
   /** Dflow.Args is a list of argument names */
@@ -22,11 +19,14 @@ export declare namespace Dflow {
   /** A Dflow.NodeFunc is a node with some code. */
   export type NodeFunc = Dflow.Node & { code: Dflow.Code };
 
+  /** A Dflow.NodeId is a node identifier */
+  export type NodeId = string;
+
   /** A Dflow.Pin can be an input or an output of a node */
-  export type Pin = Dflow.Id | [nodeId: Dflow.Id, position: number];
+  export type Pin = Dflow.NodeId | [nodeId: Dflow.NodeId, position: number];
 
   /** Stringified Dflow.Pin */
-  export type PinId = Dflow.Id | `${Dflow.Id},${number}`;
+  export type PinId = Dflow.NodeId | `${Dflow.NodeId},${number}`;
 
   /** A Dflow.Pipe connects from a source Dflow.Pin to a target Dflow.Pin */
   export type Pipe = {
@@ -37,7 +37,7 @@ export declare namespace Dflow {
   /** A Dflow.Graph is a collection of nodes and pipes */
   export type Graph = {
     nodes: {
-      id: Dflow.Id;
+      id: Dflow.NodeId;
       name: Dflow.Name;
     }[];
     pipes: Dflow.Pipe[];
@@ -52,7 +52,7 @@ export declare namespace Dflow {
     };
 
   /** Dflow.GraphInstanceMap is a generic util to define a map of sub-graph instances */
-  export type GraphInstanceMap<T extends Dflow> = Map<Dflow.Id, T>;
+  export type GraphInstanceMap<T extends Dflow> = Map<Dflow.NodeId, T>;
 }
 
 type DflowFunc =
@@ -89,7 +89,7 @@ export class Dflow implements Dflow.NodeGraph {
    *   graphInstanceById: Dflow.GraphInstanceMap<MyDflow> = new Map();
    *
    *   // Add a sub-graph with same instance of same class.
-   *   addSubGraph(graph: Dflow.NodeGraph, id = Dflow.generateId()) {
+   *   addSubGraph(graph: Dflow.NodeGraph, id = Dflow.generateNodeId()) {
    *     const subGraph = new MyDflow(graph);
    *     subGraph.inheritFuncs({
    *       // Notice that maps are cloned.
@@ -106,7 +106,7 @@ export class Dflow implements Dflow.NodeGraph {
 
   nodeArgsByName = new Map<Dflow.Name, Dflow.Args>();
 
-  nodeNameById = new Map<Dflow.Id, Dflow.Name>();
+  nodeNameById = new Map<Dflow.NodeId, Dflow.Name>();
 
   nodeOutsByName = new Map<Dflow.Name, Dflow.Outs>();
 
@@ -182,7 +182,7 @@ export class Dflow implements Dflow.NodeGraph {
     return false;
   }
 
-  get nodeIds(): Dflow.Id[] {
+  get nodeIds(): Dflow.NodeId[] {
     return Array.from(this.nodeNameById.keys());
   }
 
@@ -200,7 +200,7 @@ export class Dflow implements Dflow.NodeGraph {
     }));
   }
 
-  addNode(name: Dflow.Node["name"], id = Dflow.generateId()): Dflow.Id {
+  addNode(name: Dflow.Node["name"], id = Dflow.generateNodeId()): Dflow.NodeId {
     this.nodeNameById.set(id, name);
     return id;
   }
@@ -404,7 +404,7 @@ export class Dflow implements Dflow.NodeGraph {
     return typeof arg === "string" ? arg : arg.join(";");
   }
 
-  static nodeIdOfPin(pin: Dflow.Pin): Dflow.Id {
+  static nodeIdOfPin(pin: Dflow.Pin): Dflow.NodeId {
     return typeof pin === "string" ? pin : pin[0];
   }
 
@@ -413,13 +413,16 @@ export class Dflow implements Dflow.NodeGraph {
   }
 
   static nodeIdsOfPipe({
-    from: source,
-    to: target,
-  }: Dflow.Pipe): [sourceId: Dflow.Id, targetId: Dflow.Id] {
-    return [Dflow.nodeIdOfPin(source), Dflow.nodeIdOfPin(target)];
+    from,
+    to,
+  }: Dflow.Pipe): [sourceNodeId: Dflow.NodeId, targetNodeId: Dflow.NodeId] {
+    return [Dflow.nodeIdOfPin(from), Dflow.nodeIdOfPin(to)];
   }
 
-  static parentNodeIds(nodeId: Dflow.Id, pipes: Dflow.Pipe[]): Dflow.Id[] {
+  static parentNodeIds(
+    nodeId: Dflow.NodeId,
+    pipes: Dflow.Pipe[]
+  ): Dflow.NodeId[] {
     return pipes
       .filter(({ to }) =>
         typeof to === "string" ? to === nodeId : to[0] === nodeId
@@ -427,7 +430,7 @@ export class Dflow implements Dflow.NodeGraph {
       .map(({ from }) => (typeof from === "string" ? from : from[0]));
   }
 
-  static generateId(): Dflow.Id {
+  static generateNodeId(): Dflow.NodeId {
     return crypto.randomUUID().substring(0, 8);
   }
 
@@ -451,7 +454,7 @@ export class Dflow implements Dflow.NodeGraph {
    * }
    * ```
    */
-  static levelOfNode(nodeId: Dflow.Id, pipes: Dflow.Pipe[]): number {
+  static levelOfNode(nodeId: Dflow.NodeId, pipes: Dflow.Pipe[]): number {
     const parentsNodeIds = Dflow.parentNodeIds(nodeId, pipes);
     // 1. A node with no parent as level zero.
     if (parentsNodeIds.length === 0) return 0;
@@ -489,10 +492,10 @@ export class Dflow implements Dflow.NodeGraph {
 
     NodeExecution: class DflowErrorNodeExecution extends Error {
       nodeErrorMessage: Error["message"];
-      nodeId: Dflow.Id;
+      nodeId: Dflow.NodeId;
       nodeName: Dflow.Node["name"];
       constructor(
-        nodeId: Dflow.Id,
+        nodeId: Dflow.NodeId,
         nodeName: Dflow.Node["name"],
         nodeErrorMessage: Error["message"]
       ) {
@@ -515,7 +518,7 @@ export class Dflow implements Dflow.NodeGraph {
         };
       }
       static message(
-        nodeId: Dflow.Id,
+        nodeId: Dflow.NodeId,
         nodeName: Dflow.Node["name"],
         nodeErrorMessage: Error["message"]
       ) {

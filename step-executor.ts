@@ -3,7 +3,7 @@ import { Dflow } from "./dflow.ts";
 export class DflowStepExecutor extends Dflow {
   graphInstanceById: Dflow.GraphInstanceMap<DflowStepExecutor> = new Map();
 
-  addNodeGraph(nodeGraph: Dflow.NodeGraph, id = Dflow.generateId()) {
+  addNodeGraph(nodeGraph: Dflow.NodeGraph, id = Dflow.generateNodeId()) {
     const subGraph = new DflowStepExecutor(nodeGraph);
     subGraph.inheritFuncs({
       funcByName: new Map(this.funcByName),
@@ -17,7 +17,7 @@ export class DflowStepExecutor extends Dflow {
     const nodeIds = this.nodeIds;
     const pipes = this.pipes;
 
-    const levelOfNode: Record<Dflow.Id, number> = {};
+    const levelOfNode: Record<Dflow.NodeId, number> = {};
     for (const nodeId of nodeIds) {
       levelOfNode[nodeId] = Dflow.levelOfNode(nodeId, pipes);
     }
