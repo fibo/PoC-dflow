@@ -40,15 +40,15 @@ export declare namespace Dflow {
 	type NodeGraph = Dflow.Node & Dflow.Graph & {
 		outs?: Dflow.Outs;
 	};
-	/** Dflow.GraphInstanceMap is a generic util to define a map of sub-graph instances */
-	type GraphInstanceMap<T extends Dflow> = Map<Dflow.NodeId, T>;
+	/** Dflow.GraphInstances is a generic to define a Map of graph instances */
+	type GraphInstances<T extends Dflow> = Map<Dflow.NodeId, T>;
 }
 type DflowFunc =
 	| typeof Dflow.AsyncFunc
 	| typeof Dflow.AsyncGeneratorFunc
 	| typeof Dflow.Func
 	| typeof Dflow.GeneratorFunc;
-export declare class Dflow implements Dflow.NodeGraph {
+export declare class Dflow {
 	name: Dflow.Name;
 	args?: Dflow.Args;
 	outs?: Dflow.Outs;
@@ -62,54 +62,85 @@ export declare class Dflow implements Dflow.NodeGraph {
 	funcContext: Map<string, unknown>;
 	graphByName: Map<string, Dflow.Graph>;
 	/**
-	 * A map of Dflow sub-graph instances.
+	 * Graph instances.
 	 *
 	 * @example
 	 * ```ts
 	 * class MyDflow extends Dflow {
-	 *   // Override graphInstanceById to get the proper instance type.
-	 *   graphInstanceById: Dflow.GraphInstanceMap<MyDflow> = new Map();
+	 *   // Override graphInstances to get the proper instance type.
+	 *   graphInstances: Dflow.GraphInstances<MyDflow> = new Map();
 	 *
 	 *   // Add a sub-graph instance of MyDflow.
-	 *   addSubGraph(graph: Dflow.NodeGraph, id = Dflow.generateNodeId()) {
+	 *   addSubGraph(graph: Dflow.NodeGraph, id = Dflow.ID()) {
 	 *     const subGraph = new MyDflow(graph);
 	 *     subGraph.inheritFuncs({
 	 *       funcByName: new Map(this.funcByName),
 	 *       funcContext: new Map(this.funcContext),
 	 *       nodeArgsByName: new Map(this.nodeArgsByName),
 	 *     });
-	 *     this.graphInstanceById.set(id, subGraph);
+	 *     this.graphInstances.set(id, subGraph);
 	 *   }
 	 * }
 	 * ```
 	 */
-	graphInstanceById: Dflow.GraphInstanceMap<Dflow>;
+	graphInstances: Dflow.GraphInstances<Dflow>;
 	nodeArgsByName: Map<string, Dflow.Args>;
 	/**
-	 * Map of nodes.
+	 * Node instances.
 	 *   - key node id
 	 *   - value node name
 	 *
 	 * @example
 	 * ```ts
-	 * const nodeIds = Array.from(this.nodeNameById.keys())
+	 * const nodeIds = Array.from(this.node.keys())
+	 * ```
+	 *
+	 * @example
+	 * ```ts
+	 * const nodes: Dflow.Graph["nodes"] = Array.from(
+	 *   this.node.entries(), ([id, name]) => ({ id, name })
+	 * )
 	 * ```
 	 */
-	nodeNameById: Map<string, string>;
+	node: Map<string, string>;
+	/**
+	 * Node output names.
+	 */
 	nodeOutsByName: Map<string, Dflow.Outs>;
 	outNodeNames: Set<string>;
-	outsData: Map<Dflow.PinId, unknown>;
 	/**
-	 * Map of pipes.
+	 * Every output data.
+	 * - key
+	 *   - key=pinId, of the related output
+	 *   - value=data
+	 *
+	 * @example
+	 * ```ts
+	 * class MyDflow extends Dflow {
+	 *   get data() {
+	 *     return Object.fromEntries(this.out.entries());
+	 *   }
+	 * }
+	 * ```
+	 */
+	out: Map<string, unknown>;
+	/**
+	 * Pipe instances.
 	 *  - key=targetId, pipe.to
 	 *  - value=sourceId, pipe.from
+	 *
+	 * @example
+	 * ```ts
+	 * const pipes: Dflow.Graph["pipes"] = Array.from(
+	 *   this.pipe.entries(), ([toId, fromId]) => ({
+	 *     from: Dflow.idToPin(fromId),
+	 *     to: Dflow.idToPin(toId),
+	 *   })
+	 * )
+	 * ```
 	 */
-	pipesMap: Map<string, string>;
+	pipe: Map<string, string>;
 	constructor({ name, args, outs, nodes, pipes }?: Dflow.NodeGraph);
-	get data(): {
-		[k: string]: unknown;
-	};
-	get graph(): Dflow.Graph;
 	/**
 	 * A Dflow has async nodes if some of its DflowFunc is async or if some of its sub-graphs is async.
 	 *
@@ -131,8 +162,6 @@ export declare class Dflow implements Dflow.NodeGraph {
 	 * ```
 	 */
 	get hasAsyncNodes(): boolean;
-	get nodes(): Dflow.Graph["nodes"];
-	get pipes(): Dflow.Graph["pipes"];
 	addNode(name: Dflow.Node["name"], id?: string): Dflow.NodeId;
 	addPipe(pipe: Dflow.Pipe): void;
 	insert({ nodes, pipes }: Dflow.Graph): void;
@@ -160,7 +189,8 @@ export declare class Dflow implements Dflow.NodeGraph {
 	static GeneratorFunc: Function;
 	static AsyncGeneratorFunc: Function;
 	static funcBody(arg: Dflow.Code): string;
-	static generateNodeId(): Dflow.NodeId;
+	/** Generate a node id */
+	static ID(): Dflow.NodeId;
 	static idToPin(id: Dflow.PinId): Dflow.Pin;
 	/**
 	 * The level of a node is a number that indicates its position in the graph.

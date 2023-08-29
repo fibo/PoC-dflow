@@ -5,9 +5,7 @@
 		"strict": true
 	},
 	"fmt": {
-		"files": {
-			"exclude": ["dflow.js", "package.json", "package-lock.json"]
-		},
+		"exclude": ["dflow.js", "package.json", "package-lock.json"],
 		"useTabs": true
 	}
 }
