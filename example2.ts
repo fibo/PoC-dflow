@@ -23,6 +23,6 @@ dflow.setNodeGraph({
 	pipes: [{ from: "dd892e13", to: "558b4cfb" }],
 });
 
-dflow.addNode("graph");
+dflow.addNode("graph", "abc");
 
 console.info(JSON.stringify(dflow, null, 2));

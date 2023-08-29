@@ -90,7 +90,7 @@ export class Dflow {
 	 *   graphInstances: Dflow.GraphInstances<MyDflow> = new Map();
 	 *
 	 *   // Add a sub-graph instance of MyDflow.
-	 *   addSubGraph(graph: Dflow.NodeGraph, id = Dflow.ID()) {
+	 *   addSubGraph(graph: Dflow.NodeGraph, id = Dflow.id()) {
 	 *     const subGraph = new MyDflow(graph);
 	 *     subGraph.inheritFuncs({
 	 *       funcByName: new Map(this.funcByName),
@@ -170,7 +170,7 @@ export class Dflow {
 			name: "",
 			nodes: [],
 			pipes: [],
-		}
+		},
 	) {
 		this.name = name;
 
@@ -229,7 +229,27 @@ export class Dflow {
 		return false;
 	}
 
-	addNode(name: Dflow.Node["name"], id = Dflow.ID()): Dflow.NodeId {
+	/**
+	 * Add a node instance.
+	 *
+	 * You may want to override this method to provide an id by default.
+	 * @example
+	 * ```ts
+	 * class MyDflow extends Dflow {
+	 *   static generateId () {
+	 *     return crypto.randomUUID().substring(0, 8)
+	 *     // If crypto is not available,
+	 *     // return Math.random().toString(36).substr(2)
+	 *   }
+	 *
+	 *   addNode(name: Dflow.Node["name"], id = MyDflow.generateId()): Dflow.NodeId {
+	 *     this.node.set(id, name);
+	 *     return id;
+	 *   }
+	 * }
+	 * ```
+	 */
+	addNode(name: Dflow.Node["name"], id: Dflow.NodeId): Dflow.NodeId {
 		this.node.set(id, name);
 		return id;
 	}
@@ -305,7 +325,14 @@ export class Dflow {
 	setFunc(name: Dflow.Name, func: Dflow.Func, args?: Dflow.Args) {
 		this.setNode({ name, args });
 		if (this.hasNode(name)) throw new Dflow.Error.NodeOverride(name);
-		if (args) this.nodeArgsByName.set(name, args);
+		if (args) {
+			this.nodeArgsByName.set(name, args);
+		} else if (func.length > 0) {
+			this.nodeArgsByName.set(
+				name,
+				Array.from({ length: 2 }).map((_, i) => `arg${i}`),
+			);
+		}
 		this.funcByName.set(name, func);
 	}
 
@@ -321,7 +348,7 @@ export class Dflow {
 				this.setFunc(
 					name,
 					Dflow.AsyncFunc(...args, Dflow.funcBody(code)),
-					args
+					args,
 				);
 			} else {
 				this.setFunc(name, Dflow.AsyncFunc(Dflow.funcBody(code)));
@@ -343,6 +370,13 @@ export class Dflow {
 
 	toJSON() {
 		return this.toValue();
+	}
+
+	toString() {
+		const { name, args, nodes, pipes, outs } = this.toValue();
+		return `Dflow name=${name} args=${args?.length ?? 0} nodes=${
+			nodes.length
+		} pipes=${pipes.length} outs=${outs?.length ?? 0}`;
 	}
 
 	toValue(): Dflow.NodeGraph {
@@ -374,11 +408,6 @@ export class Dflow {
 
 	static funcBody(arg: Dflow.Code) {
 		return typeof arg === "string" ? arg : arg.join(";");
-	}
-
-	/** Generate a node id */
-	static ID(): Dflow.NodeId {
-		return crypto.randomUUID().substring(0, 8);
 	}
 
 	static idToPin(id: Dflow.PinId): Dflow.Pin {
@@ -416,7 +445,7 @@ export class Dflow {
 		for (const parentNodeId of parentsNodeIds) {
 			maxLevel = Math.max(
 				Dflow.levelOfNode(parentNodeId, pipes),
-				maxLevel
+				maxLevel,
 			);
 		}
 		// TODO in un Directed Cyclic Graph il level è finito
@@ -468,7 +497,7 @@ export class Dflow {
 
 	static parentNodeIds(
 		nodeId: Dflow.NodeId,
-		pipes: Dflow.Pipe[]
+		pipes: Dflow.Pipe[],
 	): Dflow.NodeId[] {
 		return pipes
 			.filter(({ to }) => Dflow.nodeIdOfPin(to) === nodeId)
@@ -515,14 +544,14 @@ export class Dflow {
 			constructor(
 				nodeId: Dflow.NodeId,
 				nodeName: Dflow.Node["name"],
-				nodeErrorMessage: Error["message"]
+				nodeErrorMessage: Error["message"],
 			) {
 				super(
 					DflowErrorNodeExecution.message(
 						nodeId,
 						nodeName,
-						nodeErrorMessage
-					)
+						nodeErrorMessage,
+					),
 				);
 				this.nodeId = nodeId;
 				this.nodeName = nodeName;
@@ -542,7 +571,7 @@ export class Dflow {
 			static message(
 				nodeId: Dflow.NodeId,
 				nodeName: Dflow.Node["name"],
-				nodeErrorMessage: Error["message"]
+				nodeErrorMessage: Error["message"],
 			) {
 				return `Execution error on DflowNode name=${nodeName} id=${nodeId} error.message=${nodeErrorMessage}`;
 			}

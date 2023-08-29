@@ -159,4 +159,16 @@ export class DflowStepExecutor extends Dflow {
 			}
 		}
 	}
+
+	addNode(
+		name: Dflow.Node["name"],
+		id = DflowStepExecutor.generateId()
+	): Dflow.NodeId {
+		this.node.set(id, name);
+		return id;
+	}
+
+	static generateId() {
+		return Math.random().toString(36).substr(2);
+	}
 }
