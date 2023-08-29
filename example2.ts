@@ -1,17 +1,17 @@
-import { Dflow } from "./dflow.ts"
+import { Dflow } from "./dflow.ts";
 
-const dflow = new Dflow()
+const dflow = new Dflow();
 
 dflow.setNodeFunc({
 	name: "Math.sin",
 	args: ["arg"],
 	code: "return Math.sin(arg)",
-})
+});
 
 dflow.setNodeFunc({
 	name: "Math.PI",
 	code: "return Math.PI",
-})
+});
 
 dflow.setNodeGraph({
 	name: "graph",
@@ -21,8 +21,8 @@ dflow.setNodeGraph({
 		{ id: "cd3e2b9f", name: "graph" },
 	],
 	pipes: [{ from: "dd892e13", to: "558b4cfb" }],
-})
+});
 
-dflow.addNode("graph")
+dflow.addNode("graph");
 
-console.info(JSON.stringify(dflow, null, 2))
+console.info(JSON.stringify(dflow, null, 2));

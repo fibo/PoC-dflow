@@ -5,7 +5,9 @@
 		"strict": true
 	},
 	"fmt": {
-		"useTabs": true,
-		"semiColons": false
+		"files": {
+			"exclude": ["dflow.js", "package.json", "package-lock.json"]
+		},
+		"useTabs": true
 	}
 }

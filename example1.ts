@@ -1,23 +1,23 @@
-import { Dflow, DflowNodeFunc } from "./dflow.ts"
+import { Dflow, DflowNodeFunc } from "./dflow.ts";
 
-const dflow = new Dflow()
+const dflow = new Dflow();
 
 const PI: DflowNodeFunc = {
 	name: "Math.PI",
 	code: "return Math.PI",
-}
+};
 
 dflow.setNodeFunc({
 	name: "Math.sin",
 	args: ["arg"],
 	code: "return Math.sin(arg)",
-})
+});
 
-dflow.setNodeFunc(PI)
+dflow.setNodeFunc(PI);
 
-const nodeId1 = dflow.addNode("Math.PI")
-const nodeId2 = dflow.addNode("Math.sin")
+const nodeId1 = dflow.addNode("Math.PI");
+const nodeId2 = dflow.addNode("Math.sin");
 
-dflow.addPipe({ from: nodeId1, to: nodeId2 })
+dflow.addPipe({ from: nodeId1, to: nodeId2 });
 
-console.info(JSON.stringify(dflow, null, 2))
+console.info(JSON.stringify(dflow, null, 2));

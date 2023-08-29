@@ -1,29 +1,29 @@
-import { DflowStepExecutor } from "./step-executor.ts"
+import { DflowStepExecutor } from "./step-executor.ts";
 
 function hello() {
-	console.info("hello world")
+	console.info("hello world");
 }
 
-const dflow = new DflowStepExecutor()
+const dflow = new DflowStepExecutor();
 
 dflow.setNodeFunc({
 	name: "Math.sin",
 	args: ["arg"],
 	code: "return Math.sin(arg)",
-})
+});
 
 dflow.setNodeFunc({
 	name: "Math.PI",
 	code: ["console.info('Math.PI', Math.PI)", "return Math.PI"],
-})
+});
 
 dflow.setNodeGraph({
 	name: "empty",
 	nodes: [],
 	pipes: [],
-})
+});
 
-dflow.setFunc("hello", hello)
+dflow.setFunc("hello", hello);
 
 dflow.insert({
 	nodes: [
@@ -34,8 +34,8 @@ dflow.insert({
 		{ id: "5854bfbc", name: "empty" },
 	],
 	pipes: [{ from: "dd892e13", to: "558b4cfb" }],
-})
+});
 
-await dflow.run()
+await dflow.run();
 
-console.info(JSON.stringify(dflow, null, 2))
+console.info(JSON.stringify(dflow, null, 2));
