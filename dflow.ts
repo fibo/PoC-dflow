@@ -230,6 +230,24 @@ export class Dflow {
 	}
 
 	/**
+	 * Nodes sorted by level.
+	 */
+	get nodes(): [nodeId: Dflow.NodeId, nodeName: Dflow.Name][] {
+		const pipes = Array.from(this.pipe.entries(), ([toId, fromId]) => ({
+			from: Dflow.idToPin(fromId),
+			to: Dflow.idToPin(toId),
+		}));
+		const levelOfNode: Record<Dflow.NodeId, number> = {};
+		const nodes = Array.from(this.node.entries());
+		for (const [nodeId] of nodes) {
+			levelOfNode[nodeId] = Dflow.levelOfNode(nodeId, pipes);
+		}
+		return nodes.sort(([nodeIdA], [nodeIdB]) =>
+			levelOfNode[nodeIdA] <= levelOfNode[nodeIdB] ? -1 : 1,
+		);
+	}
+
+	/**
 	 * Add a node instance.
 	 *
 	 * You may want to override this method to provide an id by default.

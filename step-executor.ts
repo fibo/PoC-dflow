@@ -8,22 +8,7 @@ export class DflowStepExecutor extends Dflow {
 	}
 
 	async run() {
-		// Sort nodes by level
-
-		const pipes = Array.from(this.pipe.entries(), ([toId, fromId]) => ({
-			from: Dflow.idToPin(fromId),
-			to: Dflow.idToPin(toId),
-		}));
-		const levelOfNode: Record<Dflow.NodeId, number> = {};
-		const nodes = Array.from(this.node.entries());
-		for (const [nodeId] of nodes) {
-			levelOfNode[nodeId] = Dflow.levelOfNode(nodeId, pipes);
-		}
-		nodes.sort(([nodeIdA], [nodeIdB]) =>
-			levelOfNode[nodeIdA] <= levelOfNode[nodeIdB] ? -1 : 1
-		);
-
-		for (const [nodeId, nodeName] of nodes) {
+		for (const [nodeId, nodeName] of this.nodes) {
 			// Collect arg values.
 
 			const argValues: unknown[] = [];
@@ -37,11 +22,11 @@ export class DflowStepExecutor extends Dflow {
 					position++
 				) {
 					const pipe = this.pipeOfTargetId(
-						Dflow.pinToPinId([nodeId, position])
+						Dflow.pinToPinId([nodeId, position]),
 					);
 					if (pipe) {
 						argValues.push(
-							this.out.get(Dflow.pinToPinId(pipe.from))
+							this.out.get(Dflow.pinToPinId(pipe.from)),
 						);
 					} else {
 						argValues.push(undefined);
@@ -68,7 +53,7 @@ export class DflowStepExecutor extends Dflow {
 						throw new Dflow.Error.NodeExecution(
 							nodeId,
 							nodeName,
-							error.message
+							error.message,
 						);
 					} else {
 						throw error;
@@ -117,7 +102,7 @@ export class DflowStepExecutor extends Dflow {
 										subGraphNodeId,
 										position,
 									]),
-									argValues[position]
+									argValues[position],
 								);
 							}
 						}
@@ -148,8 +133,8 @@ export class DflowStepExecutor extends Dflow {
 									this.out.set(
 										Dflow.pinToPinId([nodeId, position]),
 										subGraph.out.get(
-											Dflow.pinToPinId(pipe.from)
-										)
+											Dflow.pinToPinId(pipe.from),
+										),
 									);
 								}
 							}
@@ -162,7 +147,7 @@ export class DflowStepExecutor extends Dflow {
 
 	addNode(
 		name: Dflow.Node["name"],
-		id = DflowStepExecutor.generateId()
+		id = DflowStepExecutor.generateId(),
 	): Dflow.NodeId {
 		this.node.set(id, name);
 		return id;
