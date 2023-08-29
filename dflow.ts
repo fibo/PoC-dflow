@@ -74,7 +74,7 @@ export class Dflow implements Dflow.NodeGraph {
 
 	/**
 	 * A context to bound the Dflow.Func execution.
-	 *   - key: Func name
+	 *   - key: func name
 	 *   - value: context, if any
 	 */
 	funcContext = new Map<Dflow.Name, unknown>()
@@ -90,11 +90,10 @@ export class Dflow implements Dflow.NodeGraph {
 	 *   // Override graphInstanceById to get the proper instance type.
 	 *   graphInstanceById: Dflow.GraphInstanceMap<MyDflow> = new Map();
 	 *
-	 *   // Add a sub-graph with same instance of same class.
+	 *   // Add a sub-graph instance of MyDflow.
 	 *   addSubGraph(graph: Dflow.NodeGraph, id = Dflow.generateNodeId()) {
 	 *     const subGraph = new MyDflow(graph);
 	 *     subGraph.inheritFuncs({
-	 *       // Notice that maps are cloned.
 	 *       funcByName: new Map(this.funcByName),
 	 *       funcContext: new Map(this.funcContext),
 	 *       nodeArgsByName: new Map(this.nodeArgsByName),
@@ -108,6 +107,16 @@ export class Dflow implements Dflow.NodeGraph {
 
 	nodeArgsByName = new Map<Dflow.Name, Dflow.Args>()
 
+	/**
+	 * Map of nodes.
+	 *   - key node id
+	 *   - value node name
+	 *
+	 * @example
+	 * ```ts
+	 * const nodeIds = Array.from(this.nodeNameById.keys())
+	 * ```
+	 */
 	nodeNameById = new Map<Dflow.NodeId, Dflow.Name>()
 
 	nodeOutsByName = new Map<Dflow.Name, Dflow.Outs>()
@@ -158,6 +167,23 @@ export class Dflow implements Dflow.NodeGraph {
 
 	/**
 	 * A Dflow has async nodes if some of its DflowFunc is async or if some of its sub-graphs is async.
+	 *
+	 * @example
+	 * ```ts
+	 * class MyDflow extends Dflow {
+	 *   async run () {
+	 *    // execution code
+	 *   }
+	 * }
+	 *
+	 * const graph = new MyDflow()
+	 *
+	 * if (graph.hasAsyncNodes()) {
+	 *   await graph.run()
+	 * } else {
+	 *   graph.run()
+	 * }
+	 * ```
 	 */
 	get hasAsyncNodes() {
 		const seenNodeName = new Set()
@@ -180,10 +206,6 @@ export class Dflow implements Dflow.NodeGraph {
 			}
 		}
 		return false
-	}
-
-	get nodeIds(): Dflow.NodeId[] {
-		return Array.from(this.nodeNameById.keys())
 	}
 
 	get nodes(): Dflow.Graph["nodes"] {

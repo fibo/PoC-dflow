@@ -89,20 +89,19 @@ export class DflowStepExecutor extends Dflow {
 			if (subGraph) {
 				// 1. Set graph input values.
 				if (nodeArgNames) {
-					for (const subGraphNodeId of subGraph.nodeIds) {
-						const nodeName = subGraph.nodeNameById.get(subGraphNodeId)
-						if (nodeName) {
-							for (
-								let position = 0;
-								position < nodeArgNames.length;
-								position++
-							) {
-								if (nodeName === nodeArgNames[position]) {
-									subGraph.outsData.set(
-										Dflow.pinToPinId([subGraphNodeId, position]),
-										argValues[position],
-									)
-								}
+					for (
+						const [subGraphNodeId, nodeName] of subGraph.nodeNameById.entries()
+					) {
+						for (
+							let position = 0;
+							position < nodeArgNames.length;
+							position++
+						) {
+							if (nodeName === nodeArgNames[position]) {
+								subGraph.outsData.set(
+									Dflow.pinToPinId([subGraphNodeId, position]),
+									argValues[position],
+								)
 							}
 						}
 					}
@@ -116,22 +115,21 @@ export class DflowStepExecutor extends Dflow {
 				// 3. Get graph output values.
 				const nodeOutNames = this.nodeOutsByName.get(nodeName)
 				if (nodeOutNames) {
-					for (const subGraphNodeId of subGraph.nodeIds) {
-						const nodeName = subGraph.nodeNameById.get(subGraphNodeId)
-						if (nodeName) {
-							for (
-								let position = 0;
-								position < nodeOutNames.length;
-								position++
-							) {
-								if (nodeName === nodeOutNames[position]) {
-									const pipe = subGraph.pipeOfTargetId(subGraphNodeId)
-									if (pipe) {
-										this.outsData.set(
-											Dflow.pinToPinId([nodeId, position]),
-											subGraph.outsData.get(Dflow.pinToPinId(pipe.from)),
-										)
-									}
+					for (
+						const [subGraphNodeId, nodeName] of subGraph.nodeNameById.entries()
+					) {
+						for (
+							let position = 0;
+							position < nodeOutNames.length;
+							position++
+						) {
+							if (nodeName === nodeOutNames[position]) {
+								const pipe = subGraph.pipeOfTargetId(subGraphNodeId)
+								if (pipe) {
+									this.outsData.set(
+										Dflow.pinToPinId([nodeId, position]),
+										subGraph.outsData.get(Dflow.pinToPinId(pipe.from)),
+									)
 								}
 							}
 						}
