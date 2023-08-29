@@ -47,10 +47,8 @@ export declare namespace Dflow {
 	/** A Dflow.Outs is a list of one or more declared outputs for a node */
 	export type Outs = Dflow.Name[];
 
-	export type NodeGraph =
-		& Dflow.Node
-		& Dflow.Graph
-		& {
+	export type NodeGraph = Dflow.Node &
+		Dflow.Graph & {
 			outs?: Dflow.Outs;
 		};
 
@@ -136,7 +134,6 @@ export class Dflow {
 
 	/**
 	 * Every output data.
-	 * - key
 	 *   - key=pinId, of the related output
 	 *   - value=data
 	 *
@@ -173,23 +170,22 @@ export class Dflow {
 			name: "",
 			nodes: [],
 			pipes: [],
-		},
+		}
 	) {
 		this.name = name;
 
 		if (args) for (const arg of args) this.setNode({ name: arg });
 		this.args = args;
 
-		if (outs) {
+		if (outs)
 			for (const out of outs) this.setNode({ name: out, args: ["out"] });
-		}
 		this.outs = outs;
 
 		this.insert({ nodes, pipes });
 	}
 
 	/**
-	 * A Dflow has async nodes if some of its DflowFunc is async or if some of its sub-graphs is async.
+	 * A Dflow has async nodes if some of its Dflow.Func is async or if some of its sub-graphs is async.
 	 *
 	 * @example
 	 * ```ts
@@ -215,15 +211,17 @@ export class Dflow {
 			const graph = this.graphInstances.get(nodeId);
 			if (graph?.hasAsyncNodes) return true;
 
-			// 2. Then check DflowFunc (by nodeName).
-			if (seenNodeName.has(nodeName)) {
-				// Avoid double checking.
-				continue;
-			}
+			// Avoid double checking.
+			if (seenNodeName.has(nodeName)) continue;
 			seenNodeName.add(nodeName);
+
+			// 2. Then check Dflow.Func (by nodeName).
 			const func = this.funcByName.get(nodeName);
 			if (func) {
-				if (Dflow.isAsyncFunc(func) || Dflow.isAsyncGeneratorFunc(func)) {
+				if (
+					Dflow.isAsyncFunc(func) ||
+					Dflow.isAsyncGeneratorFunc(func)
+				) {
 					return true;
 				}
 			}
@@ -237,20 +235,13 @@ export class Dflow {
 	}
 
 	addPipe(pipe: Dflow.Pipe) {
-		if (this.isBrokenPipe(pipe)) {
-			throw new Dflow.Error.BrokenPipe(pipe);
-		} else {
-			this.pipe.set(Dflow.pinToPinId(pipe.to), Dflow.pinToPinId(pipe.from));
-		}
+		if (this.isBrokenPipe(pipe)) throw new Dflow.Error.BrokenPipe(pipe);
+		this.pipe.set(Dflow.pinToPinId(pipe.to), Dflow.pinToPinId(pipe.from));
 	}
 
 	insert({ nodes, pipes }: Dflow.Graph) {
-		for (const node of nodes) {
-			this.addNode(node.name, node.id);
-		}
-		for (const pipe of pipes) {
-			this.addPipe(pipe);
-		}
+		for (const node of nodes) this.addNode(node.name, node.id);
+		for (const pipe of pipes) this.addPipe(pipe);
 	}
 
 	hasNode(name: Dflow.Name) {
@@ -263,7 +254,7 @@ export class Dflow {
 	}
 
 	/**
-	 * Inherits funcs; do not override this args and outs.
+	 * Inherits funcs; do not override this instance args and outs.
 	 */
 	inheritFuncs({
 		funcByName,
@@ -272,18 +263,17 @@ export class Dflow {
 	}: Pick<Dflow, "funcByName" | "funcContext" | "nodeArgsByName">) {
 		for (const [funcName, func] of funcByName.entries()) {
 			if (
-				!(this.args ?? []).includes(funcName) &&
-				!(this.outs ?? []).includes(funcName) &&
-				func
-			) {
-				const funcArgs = nodeArgsByName.get(funcName);
-				if (funcArgs) {
-					this.nodeArgsByName.set(funcName, funcArgs);
-				}
-				const context = funcContext.get(funcName);
-				if (context) this.funcContext.set(funcName, context);
-				this.funcByName.set(funcName, func);
+				(this.args ?? []).includes(funcName) ||
+				(this.outs ?? []).includes(funcName)
+			)
+				continue;
+			const funcArgs = nodeArgsByName.get(funcName);
+			if (funcArgs) {
+				this.nodeArgsByName.set(funcName, funcArgs);
 			}
+			const context = funcContext.get(funcName);
+			if (context) this.funcContext.set(funcName, context);
+			this.funcByName.set(funcName, func);
 		}
 	}
 
@@ -294,41 +284,33 @@ export class Dflow {
 
 	pipesOfSourceId(sourceId: Dflow.PinId): Dflow.Pipe[] {
 		const pipes: Dflow.Pipe[] = [];
-		for (const [toId, fromId] of this.pipe.entries()) {
-			if (fromId === sourceId) {
+		for (const [toId, fromId] of this.pipe.entries())
+			if (fromId === sourceId)
 				pipes.push({
 					from: Dflow.idToPin(fromId),
 					to: Dflow.idToPin(toId),
 				});
-			}
-		}
 		return pipes;
 	}
 
 	pipeOfTargetId(targetId: Dflow.PinId): Dflow.Pipe | undefined {
-		for (const [toId, fromId] of this.pipe.entries()) {
-			if (toId === targetId) {
+		for (const [toId, fromId] of this.pipe.entries())
+			if (toId === targetId)
 				return {
 					from: Dflow.idToPin(fromId),
 					to: Dflow.idToPin(toId),
 				};
-			}
-		}
 	}
 
 	setFunc(name: Dflow.Name, func: Dflow.Func, args?: Dflow.Args) {
 		this.setNode({ name, args });
-		if (this.hasNode(name)) {
-			throw new Dflow.Error.NodeOverride(name);
-		}
+		if (this.hasNode(name)) throw new Dflow.Error.NodeOverride(name);
 		if (args) this.nodeArgsByName.set(name, args);
 		this.funcByName.set(name, func);
 	}
 
 	setNode({ name, args }: Dflow.Node) {
-		if (this.hasNode(name)) {
-			throw new Dflow.Error.NodeOverride(name);
-		}
+		if (this.hasNode(name)) throw new Dflow.Error.NodeOverride(name);
 		if (args) this.nodeArgsByName.set(name, args);
 	}
 
@@ -339,7 +321,7 @@ export class Dflow {
 				this.setFunc(
 					name,
 					Dflow.AsyncFunc(...args, Dflow.funcBody(code)),
-					args,
+					args
 				);
 			} else {
 				this.setFunc(name, Dflow.AsyncFunc(Dflow.funcBody(code)));
@@ -432,7 +414,10 @@ export class Dflow {
 		// 2. Otherwise its level is the max level of its parents plus one.
 		let maxLevel = 0;
 		for (const parentNodeId of parentsNodeIds) {
-			maxLevel = Math.max(Dflow.levelOfNode(parentNodeId, pipes), maxLevel);
+			maxLevel = Math.max(
+				Dflow.levelOfNode(parentNodeId, pipes),
+				maxLevel
+			);
 		}
 		// TODO in un Directed Cyclic Graph il level è finito
 		// devo controllare se i nodeId si vedono più di una volta, allora è un ciclo
@@ -483,7 +468,7 @@ export class Dflow {
 
 	static parentNodeIds(
 		nodeId: Dflow.NodeId,
-		pipes: Dflow.Pipe[],
+		pipes: Dflow.Pipe[]
 	): Dflow.NodeId[] {
 		return pipes
 			.filter(({ to }) => Dflow.nodeIdOfPin(to) === nodeId)
@@ -491,7 +476,11 @@ export class Dflow {
 	}
 
 	static pinToPinId(pin: Dflow.Pin): Dflow.PinId {
-		return typeof pin === "string" ? pin : pin[1] === 0 ? pin[0] : pin.join();
+		return typeof pin === "string"
+			? pin
+			: pin[1] === 0
+			? pin[0]
+			: pin.join();
 	}
 
 	static positionOfPin(pin: Dflow.Pin): number | undefined {
@@ -526,10 +515,14 @@ export class Dflow {
 			constructor(
 				nodeId: Dflow.NodeId,
 				nodeName: Dflow.Node["name"],
-				nodeErrorMessage: Error["message"],
+				nodeErrorMessage: Error["message"]
 			) {
 				super(
-					DflowErrorNodeExecution.message(nodeId, nodeName, nodeErrorMessage),
+					DflowErrorNodeExecution.message(
+						nodeId,
+						nodeName,
+						nodeErrorMessage
+					)
 				);
 				this.nodeId = nodeId;
 				this.nodeName = nodeName;
@@ -549,7 +542,7 @@ export class Dflow {
 			static message(
 				nodeId: Dflow.NodeId,
 				nodeName: Dflow.Node["name"],
-				nodeErrorMessage: Error["message"],
+				nodeErrorMessage: Error["message"]
 			) {
 				return `Execution error on DflowNode name=${nodeName} id=${nodeId} error.message=${nodeErrorMessage}`;
 			}

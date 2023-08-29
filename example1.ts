@@ -1,8 +1,8 @@
-import { Dflow, DflowNodeFunc } from "./dflow.ts";
+import { Dflow } from "./dflow.js";
 
 const dflow = new Dflow();
 
-const PI: DflowNodeFunc = {
+const PI: Dflow.NodeFunc = {
 	name: "Math.PI",
 	code: "return Math.PI",
 };

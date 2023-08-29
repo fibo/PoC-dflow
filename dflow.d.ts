@@ -37,9 +37,10 @@ export declare namespace Dflow {
 	};
 	/** A Dflow.Outs is a list of one or more declared outputs for a node */
 	type Outs = Dflow.Name[];
-	type NodeGraph = Dflow.Node & Dflow.Graph & {
-		outs?: Dflow.Outs;
-	};
+	type NodeGraph = Dflow.Node &
+		Dflow.Graph & {
+			outs?: Dflow.Outs;
+		};
 	/** Dflow.GraphInstances is a generic to define a Map of graph instances */
 	type GraphInstances<T extends Dflow> = Map<Dflow.NodeId, T>;
 }
@@ -110,7 +111,6 @@ export declare class Dflow {
 	outNodeNames: Set<string>;
 	/**
 	 * Every output data.
-	 * - key
 	 *   - key=pinId, of the related output
 	 *   - value=data
 	 *
@@ -142,7 +142,7 @@ export declare class Dflow {
 	pipe: Map<string, string>;
 	constructor({ name, args, outs, nodes, pipes }?: Dflow.NodeGraph);
 	/**
-	 * A Dflow has async nodes if some of its DflowFunc is async or if some of its sub-graphs is async.
+	 * A Dflow has async nodes if some of its Dflow.Func is async or if some of its sub-graphs is async.
 	 *
 	 * @example
 	 * ```ts
@@ -167,14 +167,13 @@ export declare class Dflow {
 	insert({ nodes, pipes }: Dflow.Graph): void;
 	hasNode(name: Dflow.Name): boolean;
 	/**
-	 * Inherits funcs; do not override this args and outs.
+	 * Inherits funcs; do not override this instance args and outs.
 	 */
-	inheritFuncs(
-		{ funcByName, funcContext, nodeArgsByName }: Pick<
-			Dflow,
-			"funcByName" | "funcContext" | "nodeArgsByName"
-		>,
-	): void;
+	inheritFuncs({
+		funcByName,
+		funcContext,
+		nodeArgsByName,
+	}: Pick<Dflow, "funcByName" | "funcContext" | "nodeArgsByName">): void;
 	isBrokenPipe(pipe: Dflow.Pipe): boolean;
 	pipesOfSourceId(sourceId: Dflow.PinId): Dflow.Pipe[];
 	pipeOfTargetId(targetId: Dflow.PinId): Dflow.Pipe | undefined;
@@ -221,12 +220,13 @@ export declare class Dflow {
 	static looksLikeAsyncCode(arg: Dflow.Code): boolean;
 	static looksLikeGeneratorCode(arg: Dflow.Code): boolean;
 	static nodeIdOfPin(pin: Dflow.Pin): Dflow.NodeId;
-	static nodeIdsOfPipe(
-		{ from, to }: Dflow.Pipe,
-	): [sourceNodeId: Dflow.NodeId, targetNodeId: Dflow.NodeId];
+	static nodeIdsOfPipe({
+		from,
+		to,
+	}: Dflow.Pipe): [sourceNodeId: Dflow.NodeId, targetNodeId: Dflow.NodeId];
 	static parentNodeIds(
 		nodeId: Dflow.NodeId,
-		pipes: Dflow.Pipe[],
+		pipes: Dflow.Pipe[]
 	): Dflow.NodeId[];
 	static pinToPinId(pin: Dflow.Pin): Dflow.PinId;
 	static positionOfPin(pin: Dflow.Pin): number | undefined;
@@ -252,7 +252,7 @@ export declare class Dflow {
 			new (
 				nodeId: Dflow.NodeId,
 				nodeName: Dflow.Node["name"],
-				nodeErrorMessage: Error["message"],
+				nodeErrorMessage: Error["message"]
 			): {
 				nodeErrorMessage: Error["message"];
 				nodeId: Dflow.NodeId;
@@ -276,7 +276,7 @@ export declare class Dflow {
 			message(
 				nodeId: Dflow.NodeId,
 				nodeName: Dflow.Node["name"],
-				nodeErrorMessage: Error["message"],
+				nodeErrorMessage: Error["message"]
 			): string;
 		};
 		NodeOverride: {

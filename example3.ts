@@ -1,4 +1,4 @@
-import { DflowStepExecutor } from "./step-executor.ts";
+import { DflowStepExecutor } from "./step-executor.js";
 
 function hello() {
 	console.info("hello world");
