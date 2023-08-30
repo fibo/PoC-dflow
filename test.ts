@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { readFile } from "node:fs/promises";
 import { describe, test } from "node:test";
 import { Dflow } from "./dflow.js";
-import { DflowStepExecutor } from "./step-executor.js";
+import { DflowExecutor } from "./executor.js";
 
 test("dflow.js", async () => {
 	const content = await readFile("dflow.js", "utf-8");
@@ -65,7 +65,7 @@ describe("Dflow", () => {
 				assert.ok(arg2);
 			}
 
-			const dflow = new DflowStepExecutor();
+			const dflow = new DflowExecutor();
 
 			dflow.setNodeFunc({
 				name: "true",

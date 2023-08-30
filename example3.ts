@@ -1,10 +1,10 @@
-import { DflowStepExecutor } from "./step-executor.js";
+import { DflowExecutor } from "./executor.js";
 
 function hello() {
 	console.info("hello world");
 }
 
-const dflow = new DflowStepExecutor();
+const dflow = new DflowExecutor();
 
 dflow.setNodeFunc({
 	name: "Math.sin",

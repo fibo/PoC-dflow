@@ -1,6 +1,7 @@
-import { DflowStepExecutor } from "./step-executor.js";
+// import { Dflow } from "./dflow.js";
+import { DflowExecutor } from "./executor.js";
 
-const dflow = new DflowStepExecutor();
+const dflow = new DflowExecutor();
 
 dflow.setNodeFunc({
 	name: "Math.PI",
@@ -13,7 +14,7 @@ dflow.setNodeFunc({
 	code: "return 2 * arg",
 });
 
-const subGraph = new DflowStepExecutor({
+const subGraph = new DflowExecutor({
 	name: "graph",
 	args: ["input"],
 	outs: ["output"],

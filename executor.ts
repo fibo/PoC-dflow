@@ -1,8 +1,14 @@
 import { Dflow } from "./dflow.js";
 
-export class DflowStepExecutor extends Dflow {
+export * from "./dflow.js";
+
+export class DflowExecutor extends Dflow {
 	get data() {
 		return Object.fromEntries(this.out.entries());
+	}
+
+	emit() {
+		console.log("emit");
 	}
 
 	addNode(
