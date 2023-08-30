@@ -53,7 +53,7 @@ describe("setFunc(name: Dflow.Name, func: Dflow.Func, args?: Dflow.Args)", () =>
 	});
 
 	dflow.setFunc("ok", ok);
-	assert.deepEqual(dflow.nodeArgsByName.get("ok"), ["arg0", "arg1"]);
+	assert.deepEqual(dflow.nodeArgs.get("ok"), ["arg0", "arg1"]);
 
 	const nodeId1 = dflow.addNode("true");
 	const nodeId2 = dflow.addNode("ok");

@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /** https://github.com/fibo/dflow @license MIT */
 export declare namespace Dflow {
 	/** A Dflow.Func is a function, an async function, a generator or an async generator */
@@ -41,8 +42,6 @@ export declare namespace Dflow {
 		Dflow.Graph & {
 			outs?: Dflow.Outs;
 		};
-	/** Dflow.GraphInstances is a generic to define a Map of graph instances */
-	type GraphInstances<T extends Dflow> = Map<Dflow.NodeId, T>;
 }
 type DflowFunc =
 	| typeof Dflow.AsyncFunc
@@ -53,39 +52,29 @@ export declare class Dflow {
 	name: Dflow.Name;
 	args?: Dflow.Args;
 	outs?: Dflow.Outs;
-	argNodeNames: Set<string>;
-	funcByName: Map<string, Function>;
 	/**
 	 * A context to bound the Dflow.Func execution.
 	 *   - key: func name
 	 *   - value: context, if any
 	 */
-	funcContext: Map<string, unknown>;
-	graphByName: Map<string, Dflow.Graph>;
+	context: Map<string, unknown>;
+	func: Map<string, Function>;
 	/**
 	 * Graph instances.
+	 *
+	 * If you access it in a child class you may need to override it.
 	 *
 	 * @example
 	 * ```ts
 	 * class MyDflow extends Dflow {
-	 *   // Override graphInstances to get the proper instance type.
-	 *   graphInstances: Dflow.GraphInstances<MyDflow> = new Map();
-	 *
-	 *   // Add a sub-graph instance of MyDflow.
-	 *   addSubGraph(graph: Dflow.NodeGraph, id = Dflow.ID()) {
-	 *     const subGraph = new MyDflow(graph);
-	 *     subGraph.inheritFuncs({
-	 *       funcByName: new Map(this.funcByName),
-	 *       funcContext: new Map(this.funcContext),
-	 *       nodeArgsByName: new Map(this.nodeArgsByName),
-	 *     });
-	 *     this.graphInstances.set(id, subGraph);
-	 *   }
+	 *   // Override graph Map to get the proper instance type.
+	 *   graph = new Map<Dflow.NodeId, MyDflow>();
 	 * }
 	 * ```
 	 */
-	graphInstances: Dflow.GraphInstances<Dflow>;
-	nodeArgsByName: Map<string, Dflow.Args>;
+	graph: Map<string, Dflow>;
+	/** Names of nodes that correspond to args and outs. */
+	ioNodes: Set<string>;
 	/**
 	 * Node instances.
 	 *   - key node id
@@ -104,11 +93,12 @@ export declare class Dflow {
 	 * ```
 	 */
 	node: Map<string, string>;
+	nodeArgs: Map<string, Dflow.Args>;
+	nodeGraph: Map<string, Dflow.NodeGraph>;
 	/**
 	 * Node output names.
 	 */
-	nodeOutsByName: Map<string, Dflow.Outs>;
-	outNodeNames: Set<string>;
+	nodeOuts: Map<string, Dflow.Outs>;
 	/**
 	 * Every output data.
 	 *   - key=pinId, of the related output
@@ -142,54 +132,62 @@ export declare class Dflow {
 	pipe: Map<string, string>;
 	constructor({ name, args, outs, nodes, pipes }?: Dflow.NodeGraph);
 	/**
-	 * A Dflow has async nodes if some of its Dflow.Func is async or if some of its sub-graphs is async.
+	 * Nodes sorted by level.
+	 */
+	get nodes(): [nodeId: Dflow.NodeId, nodeName: Dflow.Name][];
+	/**
+	 * Add a node graph instance.
+	 */
+	addNodeGraph(nodeGraph: Dflow.NodeGraph, nodeId: Dflow.NodeId): void;
+	/**
+	 * Add a node instance.
 	 *
+	 * You may want to override this method to provide an id by default.
 	 * @example
 	 * ```ts
 	 * class MyDflow extends Dflow {
-	 *   async run () {
-	 *    // execution code
+	 *   addNode(name: Dflow.Node["name"], id = crypto.randomUUID()): Dflow.NodeId {
+	 *     this.node.set(id, name);
+	 *     return id;
 	 *   }
-	 * }
-	 *
-	 * const graph = new MyDflow()
-	 *
-	 * if (graph.hasAsyncNodes()) {
-	 *   await graph.run()
-	 * } else {
-	 *   graph.run()
 	 * }
 	 * ```
 	 */
-	get hasAsyncNodes(): boolean;
-	addNode(name: Dflow.Node["name"], id?: string): Dflow.NodeId;
+	addNode(name: Dflow.Node["name"], id: Dflow.NodeId): Dflow.NodeId;
+	/**
+	 * Connect from a node output to a node input.
+	 */
 	addPipe(pipe: Dflow.Pipe): void;
-	insert({ nodes, pipes }: Dflow.Graph): void;
+	argValues(nodeId: Dflow.NodeId): unknown[];
 	hasNode(name: Dflow.Name): boolean;
 	/**
-	 * Inherits funcs; do not override this instance args and outs.
+	 * Inherit funcs, args and contexts; do not override this instance ioNodes.
 	 */
-	inheritFuncs({
-		funcByName,
-		funcContext,
-		nodeArgsByName,
-	}: Pick<Dflow, "funcByName" | "funcContext" | "nodeArgsByName">): void;
+	inheritFuncs(dflow: Pick<Dflow, "func" | "context" | "nodeArgs">): void;
+	insert({ nodes, pipes }: Dflow.Graph): void;
 	isBrokenPipe(pipe: Dflow.Pipe): boolean;
-	pipesOfSourceId(sourceId: Dflow.PinId): Dflow.Pipe[];
 	pipeOfTargetId(targetId: Dflow.PinId): Dflow.Pipe | undefined;
+	run(): Promise<void>;
+	runFunc(
+		nodeId: Dflow.NodeId,
+		func: Dflow.Func,
+		argValues: unknown[],
+		context?: unknown,
+	): Promise<void>;
+	runGraph(graphId: Dflow.NodeId, graph: Dflow): Promise<void>;
 	setFunc(name: Dflow.Name, func: Dflow.Func, args?: Dflow.Args): void;
-	setNode({ name, args }: Dflow.Node): void;
+	setNodeArg(name: Dflow.Name): void;
 	setNodeFunc({ name, args, code }: Dflow.NodeFunc): void;
 	setNodeGraph({ name, args, outs, nodes, pipes }: Dflow.NodeGraph): void;
+	setNodeOut(name: Dflow.Name): void;
 	toJSON(): Dflow.NodeGraph;
+	toString(): string;
 	toValue(): Dflow.NodeGraph;
 	static AsyncFunc: Function;
 	static Func: Function;
 	static GeneratorFunc: Function;
 	static AsyncGeneratorFunc: Function;
 	static funcBody(arg: Dflow.Code): string;
-	/** Generate a node id */
-	static ID(): Dflow.NodeId;
 	static idToPin(id: Dflow.PinId): Dflow.Pin;
 	/**
 	 * The level of a node is a number that indicates its position in the graph.
@@ -226,7 +224,7 @@ export declare class Dflow {
 	}: Dflow.Pipe): [sourceNodeId: Dflow.NodeId, targetNodeId: Dflow.NodeId];
 	static parentNodeIds(
 		nodeId: Dflow.NodeId,
-		pipes: Dflow.Pipe[]
+		pipes: Dflow.Pipe[],
 	): Dflow.NodeId[];
 	static pinToPinId(pin: Dflow.Pin): Dflow.PinId;
 	static positionOfPin(pin: Dflow.Pin): number | undefined;
@@ -247,12 +245,20 @@ export declare class Dflow {
 				stack?: string | undefined;
 			};
 			message(pipe: Dflow.Pipe): string;
+			captureStackTrace(
+				targetObject: object,
+				constructorOpt?: Function | undefined,
+			): void;
+			prepareStackTrace?:
+				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
+				| undefined;
+			stackTraceLimit: number /** A Dflow.Code can hold one or more lines of JavaScript code */;
 		};
 		NodeExecution: {
 			new (
 				nodeId: Dflow.NodeId,
 				nodeName: Dflow.Node["name"],
-				nodeErrorMessage: Error["message"]
+				nodeErrorMessage: Error["message"],
 			): {
 				nodeErrorMessage: Error["message"];
 				nodeId: Dflow.NodeId;
@@ -276,8 +282,41 @@ export declare class Dflow {
 			message(
 				nodeId: Dflow.NodeId,
 				nodeName: Dflow.Node["name"],
-				nodeErrorMessage: Error["message"]
+				nodeErrorMessage: Error["message"],
 			): string;
+			captureStackTrace(
+				targetObject: object,
+				constructorOpt?: Function | undefined,
+			): void;
+			prepareStackTrace?:
+				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
+				| undefined;
+			stackTraceLimit: number /** A Dflow.Code can hold one or more lines of JavaScript code */;
+		};
+		NodeNotFound: {
+			new (nodeId: Dflow.NodeId): {
+				nodeId: Dflow.NodeId;
+				toJSON(): {
+					errorName: string;
+					nodeId: string;
+				};
+				toValue(): {
+					errorName: string;
+					nodeId: string;
+				};
+				name: string;
+				message: string;
+				stack?: string | undefined;
+			};
+			message(nodeId: Dflow.NodeId): string;
+			captureStackTrace(
+				targetObject: object,
+				constructorOpt?: Function | undefined,
+			): void;
+			prepareStackTrace?:
+				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
+				| undefined;
+			stackTraceLimit: number /** A Dflow.Code can hold one or more lines of JavaScript code */;
 		};
 		NodeOverride: {
 			new (name: Dflow.Node["name"]): {
@@ -295,6 +334,14 @@ export declare class Dflow {
 				stack?: string | undefined;
 			};
 			message(name: Dflow.Node["name"]): string;
+			captureStackTrace(
+				targetObject: object,
+				constructorOpt?: Function | undefined,
+			): void;
+			prepareStackTrace?:
+				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
+				| undefined;
+			stackTraceLimit: number /** A Dflow.Code can hold one or more lines of JavaScript code */;
 		};
 	};
 }

@@ -36,11 +36,7 @@ const nodeId1 = dflow.addNode("Math.PI");
 const nodeId2 = dflow.addNode("graph");
 dflow.addPipe({ from: nodeId1, to: nodeId2 });
 
-if (dflow.hasAsyncNodes) {
-	await dflow.run();
-} else {
-	dflow.run();
-}
+await dflow.run();
 
 console.info(JSON.stringify(dflow, null, 2));
 

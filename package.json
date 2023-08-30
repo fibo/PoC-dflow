@@ -4,10 +4,11 @@
   "version": "1.0.0",
   "description": "is a minimal Dataflow programming engine",
   "scripts": {
-    "build": "npm run generate_dflow.d.ts && npm run generate_dflow.js && npm run prettify",
+    "build": "npm run generate_dflow.d.ts && npm run generate_dflow.js",
     "generate_dflow.d.ts": "tsc --build tsconfig.declarations.json",
     "generate_dflow.js": "esbuild dflow.ts --format=esm --minify-whitespace --outfile=dflow.js --sourcemap",
-    "prettify": "prettier --write .",
+    "postbuild": "npm run prettier",
+    "prettier": "prettier --write .",
     "pretest": "tsc --build tsconfig.tests.json",
     "test": "node --test --test-reporter spec"
   },
