@@ -20,20 +20,30 @@ export declare namespace Dflow {
 	/** A Dflow.NodeFunc is a node with some code. */
 	export type NodeFunc = Dflow.Node & { code: Dflow.Code };
 
-	/** A Dflow.NodeId is a node identifier */
+	/**
+	 * A Dflow.NodeId is a node identifier.
+	 *
+	 * The id generation is not provided by Dflow,
+	 * but is supposed that ids does not contain commas.
+	 */
 	export type NodeId = string;
 
 	/** A Dflow.Pin can be an input or an output of a node */
 	export type Pin = Dflow.NodeId | [nodeId: Dflow.NodeId, position: number];
 
-	/** Stringified Dflow.Pin */
+	/**
+	 * A Dflow.PinId is composed by a Dflow.NodeId and pin position;
+	 * if position is zero, it is omitted.
+	 */
 	export type PinId = Dflow.NodeId | `${Dflow.NodeId},${number}`;
 
-	/** A Dflow.Pipe connects from a source Dflow.Pin to a target Dflow.Pin */
+	/** A Dflow.Pipe connects from a Dflow.Pin to a Dflow.Pin */
 	export type Pipe = {
 		from: Dflow.Pin;
 		to: Dflow.Pin;
 	};
+
+	export type PipeId = [to: Dflow.PinId, from: Dflow.PinId];
 
 	/** A Dflow.Graph is a collection of nodes and pipes */
 	export type Graph = {
@@ -93,8 +103,8 @@ export class Dflow {
 
 	/**
 	 * Node instances.
-	 *   - key node id
-	 *   - value node name
+	 *   - key: node id
+	 *   - value: node name
 	 *
 	 * @example
 	 * ```ts
@@ -121,8 +131,8 @@ export class Dflow {
 
 	/**
 	 * Every output data.
-	 *   - key=pinId, of the related output
-	 *   - value=data
+	 *   - key: pinId, of the related output
+	 *   - value: data
 	 *
 	 * @example
 	 * ```ts
@@ -137,16 +147,13 @@ export class Dflow {
 
 	/**
 	 * Pipe instances.
-	 *  - key=targetId, pipe.to
-	 *  - value=sourceId, pipe.from
+	 *  - key: target pinId, pipe.to
+	 *  - value: source pinId, pipe.from
 	 *
 	 * @example
 	 * ```ts
 	 * const pipes: Dflow.Graph["pipes"] = Array.from(
-	 *   this.pipe.entries(), ([toId, fromId]) => ({
-	 *     from: Dflow.idToPin(fromId),
-	 *     to: Dflow.idToPin(toId),
-	 *   })
+	 *   this.pipe.values(), Dflow.pipeIdToPipe
 	 * )
 	 * ```
 	 */
@@ -174,10 +181,7 @@ export class Dflow {
 	 * Nodes sorted by level.
 	 */
 	get nodes(): [nodeId: Dflow.NodeId, nodeName: Dflow.Name][] {
-		const pipes = Array.from(this.pipe.entries(), ([toId, fromId]) => ({
-			from: Dflow.idToPin(fromId),
-			to: Dflow.idToPin(toId),
-		}));
+		const pipes = Array.from(this.pipe.entries(), Dflow.pipeIdToPipe);
 		const levelOfNode: Record<Dflow.NodeId, number> = {};
 		const nodes = Array.from(this.node.entries());
 		for (const [nodeId] of nodes) {
@@ -191,9 +195,14 @@ export class Dflow {
 	/**
 	 * Add a node graph instance.
 	 */
-	addNodeGraph(nodeGraph: Dflow.NodeGraph, nodeId: Dflow.NodeId) {
+	addNodeGraph(
+		nodeId: Dflow.NodeId,
+		nodeGraph: Dflow.NodeGraph | undefined = undefined,
+	) {
+		if (!nodeGraph) return;
+		if (this.graph.has(nodeId)) return;
 		const graph = new Dflow(nodeGraph);
-		graph.inheritFuncs(this);
+		graph.inherit(this);
 		this.graph.set(nodeId, graph);
 	}
 
@@ -201,6 +210,7 @@ export class Dflow {
 	 * Add a node instance.
 	 *
 	 * You may want to override this method to provide an id by default.
+	 *
 	 * @example
 	 * ```ts
 	 * class MyDflow extends Dflow {
@@ -220,8 +230,17 @@ export class Dflow {
 	 * Connect from a node output to a node input.
 	 */
 	addPipe(pipe: Dflow.Pipe) {
-		if (this.isBrokenPipe(pipe)) throw new Dflow.Error.BrokenPipe(pipe);
+		if (Dflow.isBrokenPipe(pipe, this.node))
+			throw new Dflow.Error.BrokenPipe(pipe);
 		this.pipe.set(Dflow.pinToPinId(pipe.to), Dflow.pinToPinId(pipe.from));
+	}
+
+	delNode(nodeId: Dflow.NodeId) {
+		this.delete({ nodes: [{ id: nodeId }], pipes: [] });
+	}
+
+	delPipe({ to }: Pick<Dflow.Pipe, "to">) {
+		this.pipe.delete(Dflow.pinToPinId(to));
 	}
 
 	argValues(nodeId: Dflow.NodeId) {
@@ -234,17 +253,61 @@ export class Dflow {
 
 		if (!argNames) return values;
 		for (let position = 0; position < argNames.length; position++) {
-			const pipe = this.pipeOfTargetId(
-				Dflow.pinToPinId([nodeId, position]),
-			);
-			if (pipe) {
-				values.push(this.out.get(Dflow.pinToPinId(pipe.from)));
+			const source = this.pipe.get(Dflow.pinToPinId([nodeId, position]));
+			if (source) {
+				values.push(this.out.get(Dflow.pinToPinId(source)));
 			} else {
 				values.push(undefined);
 			}
 		}
 
 		return values;
+	}
+
+	/**
+	 * Delete nodes and pipes from graph.
+	 *
+	 * When a node is deleted, also the pipes that are connected are deleted.
+	 * Return deleted item ids.
+	 */
+	delete({
+		nodes = [],
+		pipes = [],
+	}: Pick<Dflow.Graph, "pipes"> &
+		Partial<{
+			nodes: { id: Dflow.NodeId }[];
+			pipes: { to: Dflow.Pin }[];
+		}>) {
+		const deleted: Dflow.Graph = { nodes: [], pipes: [] };
+		const deletedNodeIds = new Set<Dflow.NodeId>();
+		const pipesOfDeletedNodes: { to: Dflow.Pin }[] = [];
+
+		for (const { id } of nodes) {
+			const name = this.node.get(id);
+			if (name) {
+				deleted.nodes.push({ id, name });
+				this.node.delete(id);
+				deletedNodeIds.add(id);
+			}
+		}
+		// Collect pipes that were connected to deleted nodes.
+		for (const [toId, fromId] of this.pipe.entries())
+			if (
+				deletedNodeIds.has(Dflow.nodeIdOfPin(toId)) ||
+				deletedNodeIds.has(Dflow.nodeIdOfPin(fromId))
+			)
+				pipesOfDeletedNodes.push({ to: Dflow.pinIdToPin(toId) });
+		// Delete wanted pipes plus pipes that are broken after nodes deletion.
+		for (const { to } of pipes.concat(pipesOfDeletedNodes)) {
+			const toId = Dflow.pinToPinId(to);
+			const from = this.pipe.get(toId);
+			if (from) {
+				deleted.pipes.push({ from, to });
+				this.pipe.delete(toId);
+			}
+		}
+
+		return deleted;
 	}
 
 	hasNode(name: Dflow.Name) {
@@ -258,7 +321,7 @@ export class Dflow {
 	/**
 	 * Inherit funcs, args and contexts; do not override this instance ioNodes.
 	 */
-	inheritFuncs(dflow: Pick<Dflow, "func" | "context" | "nodeArgs">) {
+	inherit(dflow: Pick<Dflow, "func" | "context" | "nodeArgs">) {
 		for (const [funcName, func] of dflow.func.entries()) {
 			if (this.ioNodes.has(funcName)) continue;
 			const args = dflow.nodeArgs.get(funcName);
@@ -269,63 +332,27 @@ export class Dflow {
 		}
 	}
 
-	insert({ nodes, pipes }: Dflow.Graph) {
+	insert({ nodes = [], pipes = [] }: Partial<Dflow.Graph>) {
 		for (const node of nodes) this.addNode(node.name, node.id);
 		for (const pipe of pipes) this.addPipe(pipe);
-	}
-
-	isBrokenPipe(pipe: Dflow.Pipe) {
-		const [sourceId, targetId] = Dflow.nodeIdsOfPipe(pipe);
-		return !this.node.has(sourceId) || !this.node.has(targetId);
-	}
-
-	pipeOfTargetId(targetId: Dflow.PinId): Dflow.Pipe | undefined {
-		for (const [toId, fromId] of this.pipe.entries()) {
-			if (toId === targetId) {
-				return {
-					from: Dflow.idToPin(fromId),
-					to: Dflow.idToPin(toId),
-				};
-			}
-		}
 	}
 
 	async run() {
 		for (const [nodeId, nodeName] of this.nodes) {
 			// If node is a graph, create a graph instance if it does not exist.
-			const nodeGraph = this.nodeGraph.get(nodeName);
-			if (nodeGraph && !this.graph.has(nodeId)) {
-				this.addNodeGraph(nodeGraph, nodeId);
-			}
+			this.addNodeGraph(nodeId, this.nodeGraph.get(nodeName));
 
-			// Collect arg values.
-			const argValues = this.argValues(nodeId);
-
-			// Run funcs.
-			const func = this.func.get(nodeName);
-			if (func) {
-				await this.runFunc(
-					nodeId,
-					func,
-					argValues,
-					this.context.get(nodeName),
-				);
-			}
-
-			// Run graphs.
-			const graph = this.graph.get(nodeName);
-			if (graph) {
-				await this.runGraph(nodeId, graph);
-			}
+			await this.runNode(nodeId, nodeName);
 		}
 	}
 
 	async runFunc(
 		nodeId: Dflow.NodeId,
-		func: Dflow.Func,
-		argValues: unknown[],
+		func: Dflow.Func | undefined = undefined,
 		context: unknown = null,
 	) {
+		if (!func) return;
+		const argValues = this.argValues(nodeId);
 		try {
 			if (Dflow.isAsyncFunc(func)) {
 				const data = await func.apply(context, argValues);
@@ -335,19 +362,21 @@ export class Dflow {
 				this.out.set(nodeId, data);
 			}
 		} catch (error) {
-			if (error instanceof Error) {
-				throw new Dflow.Error.NodeExecution(
-					nodeId,
-					this.node.get(nodeId) ?? "",
-					error.message,
-				);
-			} else {
-				throw error;
-			}
+			const message =
+				error instanceof Error ? error.message : String(error);
+			throw new Dflow.Error.NodeExecution(
+				nodeId,
+				this.node.get(nodeId) ?? "",
+				message,
+			);
 		}
 	}
 
-	async runGraph(graphId: Dflow.NodeId, graph: Dflow) {
+	async runGraph(
+		graphId: Dflow.NodeId,
+		graph: Dflow | undefined = undefined,
+	) {
+		if (!graph) return;
 		const argValues = this.argValues(graphId);
 		// 1. Set graph input values.
 		const argNames = graph.args;
@@ -379,21 +408,29 @@ export class Dflow {
 		}
 		// 3. Get graph output values.
 		const outs = graph.outs;
-		if (outs) {
-			for (const [subGraphNodeId, nodeName] of graph.node.entries()) {
-				for (let position = 0; position < outs.length; position++) {
+		if (outs)
+			for (const [nodeId, nodeName] of graph.node.entries())
+				for (let position = 0; position < outs.length; position++)
 					if (nodeName === outs[position]) {
-						const pipe = graph.pipeOfTargetId(subGraphNodeId);
-						if (pipe) {
+						const source = this.pipe.get(nodeId);
+						if (source)
 							this.out.set(
 								Dflow.pinToPinId([graphId, position]),
-								graph.out.get(Dflow.pinToPinId(pipe.from)),
+								graph.out.get(Dflow.pinToPinId(source)),
 							);
-						}
 					}
-				}
-			}
-		}
+	}
+
+	async runNode(nodeId: Dflow.NodeId, nodeName: Dflow.Name) {
+		// Run func, if any.
+		await this.runFunc(
+			nodeId,
+			this.func.get(nodeName),
+			this.context.get(nodeName),
+		);
+
+		// Run graph, if any.
+		await this.runGraph(nodeId, this.graph.get(nodeName));
 	}
 
 	setFunc(name: Dflow.Name, func: Dflow.Func, args?: Dflow.Args) {
@@ -469,10 +506,7 @@ export class Dflow {
 				id,
 				name,
 			})),
-			pipes: Array.from(this.pipe.entries(), ([toId, fromId]) => ({
-				from: Dflow.idToPin(fromId),
-				to: Dflow.idToPin(toId),
-			})),
+			pipes: Array.from(this.pipe.entries(), Dflow.pipeIdToPipe),
 		};
 	}
 
@@ -491,7 +525,7 @@ export class Dflow {
 		return typeof arg === "string" ? arg : arg.join(";");
 	}
 
-	static idToPin(id: Dflow.PinId): Dflow.Pin {
+	static pinIdToPin(id: Dflow.PinId): Dflow.Pin {
 		const [nodeId, positionStr] = id.split(",");
 		const position = Number(positionStr);
 		return position ? [nodeId, position] : nodeId;
@@ -545,6 +579,10 @@ export class Dflow {
 		return func?.constructor === Dflow.AsyncGeneratorFunc;
 	}
 
+	static isBrokenPipe(pipe: Dflow.Pipe, node: Dflow["node"]) {
+		return Dflow.nodeIdsOfPipe(pipe).some((nodeId) => !node.has(nodeId));
+	}
+
 	static isFunc(func: unknown) {
 		return func?.constructor === Dflow.Func;
 	}
@@ -572,7 +610,7 @@ export class Dflow {
 	static nodeIdsOfPipe({
 		from,
 		to,
-	}: Dflow.Pipe): [sourceNodeId: Dflow.NodeId, targetNodeId: Dflow.NodeId] {
+	}: Dflow.Pipe): [source: Dflow.NodeId, target: Dflow.NodeId] {
 		return [Dflow.nodeIdOfPin(from), Dflow.nodeIdOfPin(to)];
 	}
 
@@ -593,8 +631,11 @@ export class Dflow {
 			: pin.join();
 	}
 
-	static positionOfPin(pin: Dflow.Pin): number | undefined {
-		return typeof pin === "string" ? undefined : pin[1];
+	static pipeIdToPipe([to, from]: Dflow.PipeId): Dflow.Pipe {
+		return {
+			from: Dflow.pinIdToPin(from),
+			to: Dflow.pinIdToPin(to),
+		};
 	}
 
 	static Error = {
@@ -637,13 +678,14 @@ export class Dflow {
 				this.nodeId = nodeId;
 				this.nodeName = nodeName;
 				this.nodeErrorMessage = nodeErrorMessage;
+				this.name = Dflow.Error.NodeExecution.errorName;
 			}
 			toJSON() {
 				return this.toValue();
 			}
 			toValue() {
 				return {
-					errorName: "DflowErrorNodeExecution",
+					errorName: Dflow.Error.NodeExecution.errorName,
 					nodeId: this.nodeId,
 					nodeName: this.nodeName,
 					nodeErrorMessage: this.nodeErrorMessage,
@@ -656,6 +698,7 @@ export class Dflow {
 			) {
 				return `Execution error on DflowNode name=${nodeName} id=${nodeId} error.message=${nodeErrorMessage}`;
 			}
+			static errorName = "DflowErrorNodeExecution";
 		},
 
 		NodeNotFound: class DflowErrorNodeNotFound extends Error {
@@ -663,19 +706,21 @@ export class Dflow {
 			constructor(nodeId: Dflow.NodeId) {
 				super(DflowErrorNodeNotFound.message(nodeId));
 				this.nodeId = nodeId;
+				this.name = Dflow.Error.NodeNotFound.errorName;
 			}
 			toJSON() {
 				return this.toValue();
 			}
 			toValue() {
 				return {
-					errorName: "DflowErrorNodeNotFound",
+					errorName: Dflow.Error.NodeNotFound.errorName,
 					nodeId: this.nodeId,
 				};
 			}
 			static message(nodeId: Dflow.NodeId) {
 				return `Not found DflowNode nodeId=${nodeId}`;
 			}
+			static errorName = "DflowErrorNodeNotFound";
 		},
 
 		NodeOverride: class DflowErrorNodeOverride extends Error {
@@ -683,19 +728,21 @@ export class Dflow {
 			constructor(name: Dflow.Node["name"]) {
 				super(DflowErrorNodeOverride.message(name));
 				this.nodeName = name;
+				this.name = Dflow.Error.NodeOverride.errorName;
 			}
 			toJSON() {
 				return this.toValue();
 			}
 			toValue() {
 				return {
-					errorName: "DflowErrorNodeOverride",
+					errorName: Dflow.Error.NodeOverride.errorName,
 					nodeName: this.nodeName,
 				};
 			}
 			static message(name: Dflow.Node["name"]) {
 				return `Cannot override existing DflowNode name=${name}`;
 			}
+			static errorName = "DflowErrorNodeOverride";
 		},
 	};
 }
