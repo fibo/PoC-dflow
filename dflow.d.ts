@@ -331,6 +331,7 @@ export declare class Dflow {
 				name: string;
 				message: string;
 				stack?: string | undefined;
+				cause?: unknown;
 			};
 			message(pipe: Dflow.Pipe): string;
 			captureStackTrace(
@@ -366,6 +367,7 @@ export declare class Dflow {
 				name: string;
 				message: string;
 				stack?: string | undefined;
+				cause?: unknown;
 			};
 			message(
 				nodeId: Dflow.NodeId,
@@ -396,6 +398,7 @@ export declare class Dflow {
 				name: string;
 				message: string;
 				stack?: string | undefined;
+				cause?: unknown;
 			};
 			message(nodeId: Dflow.NodeId): string;
 			errorName: string;
@@ -422,6 +425,7 @@ export declare class Dflow {
 				name: string;
 				message: string;
 				stack?: string | undefined;
+				cause?: unknown;
 			};
 			message(name: Dflow.NodeName): string;
 			errorName: string;

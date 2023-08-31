@@ -1,11 +1,11 @@
 {
   "compilerOptions": {
-    "lib": ["ES2019", "DOM"],
-    "module": "ES2022",
+    "lib": ["ESNext", "DOM"],
+    "module": "ESNext",
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "strict": true,
-    "target": "ES2017"
+    "target": "ESNext"
   },
   "includes": ["**/*.ts"]
 }

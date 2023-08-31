@@ -7,20 +7,20 @@ export class DflowExecutor extends Dflow {
 		return Object.fromEntries(this.out.entries());
 	}
 
-	*childrenOfNodeFunc(nodeId: Dflow.NodeId) {
+	*childNodes(pinId: Dflow.PinId): Generator<Dflow.NodeId> {
 		for (let [to, from] of this.pipe.entries())
-			if (from === nodeId) yield Dflow.nodeIdOfPin(to);
+			if (from === pinId) yield Dflow.nodeIdOfPin(to);
 	}
 
-	emitFuncOut(nodeId: Dflow.NodeId, value: unknown) {
-		this.out.set(nodeId, value);
-		for (const childNodeId of this.childrenOfNodeFunc(nodeId))
-			this.runNode(childNodeId);
+	async emit(pinId: Dflow.PinId, value: unknown) {
+		this.out.set(pinId, value);
+		for (const childNodeId of this.childNodes(pinId))
+			await this.runNode(childNodeId);
 	}
 
 	createFuncContext(nodeId: Dflow.NodeId) {
 		return {
-			emit: this.emitFuncOut.bind(this, nodeId),
+			emit: this.emit.bind(this, nodeId),
 		};
 	}
 
