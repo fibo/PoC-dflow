@@ -61,6 +61,28 @@ describe("Dflow", () => {
 		});
 	});
 
+	describe("*parentNodeIds(nodeId: Dflow.NodeId): Generator<Dflow.NodeId>", () => {
+		test("return nodeIds of parent nodes", () => {
+			const dflow = new Dflow();
+			dflow.setNodeFunc({
+				name: "sum",
+				args: ["a", "b"],
+				code: "return a + b",
+			});
+			dflow.addNode("sum", "level0_1");
+			dflow.addNode("sum", "level0_2");
+			dflow.addNode("sum", "level1_1");
+			dflow.addPipe({ from: "level0_1", to: ["level1_1", 0] });
+			dflow.addPipe({ from: "level0_2", to: ["level1_1", 1] });
+			const parentNodeIds = new Set(["level0_1", "level0_2"]);
+			for (let nodeId of dflow.parentNodeIds("level1_1")) {
+				assert.ok(["level0_1", "level0_2"].includes(nodeId));
+				parentNodeIds.delete(nodeId);
+			}
+			assert.equal(parentNodeIds.size, 0);
+		});
+	});
+
 	describe("run()", () => {
 		test("executes node funcs", async () => {
 			const dflow = new Dflow();

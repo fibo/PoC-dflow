@@ -394,6 +394,12 @@ export class Dflow {
 			throw new Dflow.Error.NodeOverride(name);
 	}
 
+	*parentNodeIds(nodeId: Dflow.NodeId): Generator<Dflow.NodeId> {
+		for (let [toId, fromId] of this.pipe.entries())
+			if (Dflow.nodeIdOfPinId(toId) === nodeId)
+				yield Dflow.nodeIdOfPinId(fromId);
+	}
+
 	async run() {
 		for (const [nodeId, nodeName] of this.nodes) {
 			// If node is a graph, create a graph instance if it does not exist.
@@ -585,12 +591,6 @@ export class Dflow {
 		return typeof code === "string" ? code : code.join(";");
 	}
 
-	static pinIdToPin(id: Dflow.PinId): Dflow.Pin {
-		const [nodeId, positionStr] = id.split(",");
-		const position = Number(positionStr);
-		return position ? [nodeId, position] : nodeId;
-	}
-
 	/**
 	 * The level of a node is a number that indicates its position in the graph.
 	 *
@@ -668,6 +668,10 @@ export class Dflow {
 		return typeof pin === "string" ? pin : pin[0];
 	}
 
+	static nodeIdOfPinId(pinId: Dflow.PinId): Dflow.NodeId {
+		return pinId.split(",")[0];
+	}
+
 	static nodeIdsOfPipe({
 		from,
 		to,
@@ -682,6 +686,12 @@ export class Dflow {
 		return pipes
 			.filter(({ to }) => Dflow.nodeIdOfPin(to) === nodeId)
 			.map(({ from }) => Dflow.nodeIdOfPin(from));
+	}
+
+	static pinIdToPin(id: Dflow.PinId): Dflow.Pin {
+		const [nodeId, positionStr] = id.split(",");
+		const position = Number(positionStr);
+		return position ? [nodeId, position] : nodeId;
 	}
 
 	static pinToPinId(pin: Dflow.Pin): Dflow.PinId {
