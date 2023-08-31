@@ -93,10 +93,9 @@ export class Dflow {
 	 *     console.log(id, ...args)
 	 *   }
 	 *
-	 *   addNode(name: Dflow.Node["name"], id = crypto.randomUUID()): Dflow.NodeId {
-	 *     this.node.set(id, name);
+	 *   addNode(name: Dflow.NodeName, id = crypto.randomUUID()): Dflow.NodeId {
 	 *     this.context.set(id, { log: this.log.bind(null, id) });
-	 *     return id;
+	 *     return super.addNode(name, id)
 	 *   }
 	 * }
 	 *
@@ -244,9 +243,8 @@ export class Dflow {
 	 * @example
 	 * ```ts
 	 * class MyDflow extends Dflow {
-	 *   addNode(name: Dflow.Node["name"], nodeId = crypto.randomUUID()): Dflow.NodeId {
-	 *     this.node.set(nodeId, name);
-	 *     return nodeId;
+	 *   addNode(name: Dflow.Node["name"], id = crypto.randomUUID()): Dflow.NodeId {
+	 *     return super.addNode(name, id);
 	 *   }
 	 * }
 	 * ```
@@ -439,31 +437,25 @@ export class Dflow {
 		const argValues = this.argValues(graphId);
 		// 1. Set graph input values.
 		const argNames = graph.args;
-		if (argNames) {
-			for (const [nodeId, nodeName] of graph.node.entries()) {
-				for (let position = 0; position < argNames.length; position++) {
-					if (nodeName === argNames[position]) {
+		if (argNames)
+			for (const [nodeId, nodeName] of graph.node.entries())
+				for (let position = 0; position < argNames.length; position++)
+					if (nodeName === argNames[position])
 						graph.out.set(
 							Dflow.pinToPinId([nodeId, position]),
 							argValues[position],
 						);
-					}
-				}
-			}
-		}
 		// 2. Execute graph.
 		try {
 			await graph.run();
 		} catch (error) {
-			if (error instanceof Error) {
+			if (error instanceof Error)
 				throw new Dflow.Error.NodeExecution(
 					graphId,
 					this.node.get(graphId) ?? "",
 					error.message,
 				);
-			} else {
-				throw error;
-			}
+			else throw error;
 		}
 		// 3. Get graph output values.
 		const outs = graph.outs;

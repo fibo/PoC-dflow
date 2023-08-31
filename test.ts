@@ -2,7 +2,6 @@ import { strict as assert } from "node:assert";
 import { readFile } from "node:fs/promises";
 import { describe, test } from "node:test";
 import { Dflow } from "./dflow.js";
-import { DflowExecutor } from "./executor.js";
 
 test("dflow.js", async () => {
 	const content = await readFile("dflow.js", "utf-8");
@@ -28,9 +27,8 @@ describe("Dflow", () => {
 					name: Dflow.Node["name"],
 					id: Dflow.NodeId,
 				): Dflow.NodeId {
-					this.node.set(id, name);
 					this.context.set(id, { test: this.test.bind(null, id) });
-					return id;
+					return super.addNode(name, id);
 				}
 			}
 
@@ -102,7 +100,7 @@ describe("Dflow", () => {
 				assert.ok(arg2);
 			}
 
-			const dflow = new DflowExecutor();
+			const dflow = new Dflow();
 
 			dflow.setNodeFunc({
 				name: "true",
@@ -112,8 +110,10 @@ describe("Dflow", () => {
 			dflow.setFunc("ok", ok);
 			assert.deepEqual(dflow.nodeArgs.get("ok"), ["arg0", "arg1"]);
 
-			const nodeId1 = dflow.addNode("true");
-			const nodeId2 = dflow.addNode("ok");
+			const nodeId1 = "id1";
+			dflow.addNode("true", nodeId1);
+			const nodeId2 = "id2";
+			dflow.addNode("ok", nodeId2);
 			dflow.addPipe({ from: nodeId1, to: nodeId2 });
 			dflow.addPipe({ from: nodeId1, to: [nodeId2, 1] });
 

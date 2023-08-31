@@ -1,7 +1,19 @@
-// import { Dflow } from "./dflow.js";
-import { DflowExecutor } from "./executor.js";
+import { Dflow } from "./dflow.js";
 
-const dflow = new DflowExecutor();
+class MyDflow extends Dflow {
+	get data() {
+		return Object.fromEntries(this.out.entries());
+	}
+
+	addNode(
+		name: Dflow.Node["name"],
+		id = Math.random().toString(36).substring(2),
+	) {
+		return super.addNode(name, id);
+	}
+}
+
+const dflow = new MyDflow();
 
 dflow.setNodeFunc({
 	name: "Math.PI",
@@ -14,7 +26,7 @@ dflow.setNodeFunc({
 	code: "return 2 * arg",
 });
 
-const subGraph = new DflowExecutor({
+const subGraph = new MyDflow({
 	name: "graph",
 	args: ["input"],
 	outs: ["output"],

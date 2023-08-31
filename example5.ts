@@ -15,14 +15,10 @@ dflow.setNodeFunc({
 	code: "return setInterval(func, 1000)",
 });
 
-dflow.setNodeFunc({
-	name: "setInterval2",
-	args: ["func", "timeout"],
-	code: ["if(timeout) return -1", "return setInterval(func, timeout)"],
-});
-
-const nodeId1 = dflow.addNode("counter");
-const nodeId2 = dflow.addNode("setInterval");
+const nodeId1 = "id1";
+const nodeId2 = "id2";
+dflow.addNode("counter", nodeId1);
+dflow.addNode("setInterval", nodeId2);
 dflow.addPipe({ from: nodeId1, to: nodeId2 });
 
 await dflow.run();
