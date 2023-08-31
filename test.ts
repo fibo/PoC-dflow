@@ -61,6 +61,31 @@ describe("Dflow", () => {
 		});
 	});
 
+	describe("run()", () => {
+		test("executes node funcs", async () => {
+			const dflow = new Dflow();
+
+			dflow.setNodeFunc({
+				name: "sum",
+				args: ["a", "b"],
+				code: "return a + b",
+			});
+			dflow.setNodeFunc({ name: "PI", code: "return Math.PI" });
+			dflow.setNodeFunc({ name: "E", code: "return Math.E" });
+
+			dflow.addNode("PI", "id1");
+			dflow.addNode("E", "id2");
+			dflow.addNode("sum", "id3");
+
+			dflow.addPipe({ from: "id1", to: ["id3", 0] });
+			dflow.addPipe({ from: "id2", to: ["id3", 1] });
+
+			await dflow.run();
+
+			assert.equal(dflow.out.get("id3"), Math.PI + Math.E);
+		});
+	});
+
 	describe("runFunc(nodeId: Dflow.NodeId, func: Dflow.Func | undefined, context?: unknown)", () => {
 		test("func can be undefined", async () => {
 			const errorMessage = "failed";
@@ -114,7 +139,7 @@ describe("Dflow", () => {
 			dflow.addNode("true", nodeId1);
 			const nodeId2 = "id2";
 			dflow.addNode("ok", nodeId2);
-			dflow.addPipe({ from: nodeId1, to: nodeId2 });
+			dflow.addPipe({ from: nodeId1, to: [nodeId2, 0] });
 			dflow.addPipe({ from: nodeId1, to: [nodeId2, 1] });
 
 			// This will run asserts in `ok` function
@@ -147,6 +172,19 @@ describe("Dflow", () => {
 			assert.equal(
 				dflow.toString(),
 				"Dflow name=test args=0 nodes=2 pipes=1 outs=0",
+			);
+		});
+	});
+
+	describe("funcBody(code: Dflow.Code): string", () => {
+		test("if code is a string, it return same code", () => {
+			assert.equal(Dflow.funcBody("some code"), "some code");
+		});
+
+		test("if code is an array of strings, it return code joined by semicolons", () => {
+			assert.equal(
+				Dflow.funcBody(["code row1", "code row2"]),
+				"code row1;code row2",
 			);
 		});
 	});

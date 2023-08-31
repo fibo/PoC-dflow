@@ -78,10 +78,9 @@ export declare class Dflow {
 	 *     console.log(id, ...args)
 	 *   }
 	 *
-	 *   addNode(name: Dflow.Node["name"], id = crypto.randomUUID()): Dflow.NodeId {
-	 *     this.node.set(id, name);
+	 *   addNode(name: Dflow.NodeName, id = crypto.randomUUID()): Dflow.NodeId {
 	 *     this.context.set(id, { log: this.log.bind(null, id) });
-	 *     return id;
+	 *     return super.addNode(name, id)
 	 *   }
 	 * }
 	 *
@@ -191,9 +190,8 @@ export declare class Dflow {
 	 * @example
 	 * ```ts
 	 * class MyDflow extends Dflow {
-	 *   addNode(name: Dflow.Node["name"], nodeId = crypto.randomUUID()): Dflow.NodeId {
-	 *     this.node.set(nodeId, name);
-	 *     return nodeId;
+	 *   addNode(name: Dflow.Node["name"], id = crypto.randomUUID()): Dflow.NodeId {
+	 *     return super.addNode(name, id);
 	 *   }
 	 * }
 	 * ```
@@ -274,7 +272,15 @@ export declare class Dflow {
 	static Func: Function;
 	static GeneratorFunc: Function;
 	static AsyncGeneratorFunc: Function;
-	static funcBody(arg: Dflow.Code): string;
+	/**
+	 * Convert a Dflow.Code to a string of code.
+	 *
+	 * @example
+	 * ```ts
+	 * const func = Dflow.Func(Dflow.funcBody(code));
+	 * ```
+	 */
+	static funcBody(code: Dflow.Code): string;
 	static pinIdToPin(id: Dflow.PinId): Dflow.Pin;
 	/**
 	 * The level of a node is a number that indicates its position in the graph.

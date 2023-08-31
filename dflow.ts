@@ -573,8 +573,16 @@ export class Dflow {
 	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/AsyncGeneratorFunction
 	static AsyncGeneratorFunc = async function* () {}.constructor;
 
-	static funcBody(arg: Dflow.Code) {
-		return typeof arg === "string" ? arg : arg.join(";");
+	/**
+	 * Convert a Dflow.Code to a string of code.
+	 *
+	 * @example
+	 * ```ts
+	 * const func = Dflow.Func(Dflow.funcBody(code));
+	 * ```
+	 */
+	static funcBody(code: Dflow.Code): string {
+		return typeof code === "string" ? code : code.join(";");
 	}
 
 	static pinIdToPin(id: Dflow.PinId): Dflow.Pin {
@@ -648,6 +656,7 @@ export class Dflow {
 	}
 
 	static looksLikeAsyncCode(arg: Dflow.Code) {
+		// const code = Dflow.co
 		return arg.includes("await") && !arg.includes("yield");
 	}
 
