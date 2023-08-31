@@ -12,7 +12,44 @@ test("dflow.js", async () => {
 });
 
 describe("Dflow", () => {
-	describe("constructor", () => {
+	describe("context = new Map<Dflow.NodeId | Dflow.Name, unknown>()", () => {
+		test("context by node id takes precedence over context by node name", async () => {
+			const nodeId = "id1";
+			const nodeName = "hello";
+			const message = "hello world";
+
+			class MyDflow extends Dflow {
+				test(id: Dflow.NodeId, msg: string) {
+					assert.equal(nodeId, id);
+					assert.equal(message, msg);
+				}
+
+				addNode(
+					name: Dflow.Node["name"],
+					id: Dflow.NodeId,
+				): Dflow.NodeId {
+					this.node.set(id, name);
+					this.context.set(id, { test: this.test.bind(null, id) });
+					return id;
+				}
+			}
+
+			const dflow = new MyDflow();
+
+			dflow.setNodeFunc({
+				name: nodeName,
+				code: `this.test("${message}")`,
+			});
+			// If this context were used it would raise an AssertionError,
+			// cause node id is not passed as argument.
+			dflow.context.set(nodeName, dflow.test.bind(null));
+			dflow.addNode(nodeName, nodeId);
+
+			await dflow.run();
+		});
+	});
+
+	describe("constructor({ name, args, outs, nodes, pipes }: Dflow.NodeGraph)", () => {
 		test("no arg default to empty Dflow.NodeGraph", () => {
 			const dflow = new Dflow();
 

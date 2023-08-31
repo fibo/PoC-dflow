@@ -3,45 +3,56 @@
 export declare namespace Dflow {
 	/** A Dflow.Func is a function, an async function, a generator or an async generator */
 	type Func = DflowFunc;
-	type Name = string;
+	type ArgName = string;
+	type NodeName = string;
+	type OutName = string;
 	/** Dflow.Args is a list of argument names */
-	type Args = Dflow.Name[];
-	/** A Dflow.Node is a base type for an executable unit: for example a function */
-	type Node = {
-		name: Dflow.Name;
-		args?: Dflow.Args;
-	};
-	/** A Dflow.Code can hold one or more lines of JavaScript code */
-	type Code = string | string[];
-	/** A Dflow.NodeFunc is a node with some code. */
-	type NodeFunc = Dflow.Node & {
-		code: Dflow.Code;
-	};
-	/** A Dflow.NodeId is a node identifier */
+	type Args = Dflow.ArgName[];
+	/**
+	 * A Dflow.NodeId is a node identifier.
+	 *
+	 * The id generation is not provided by Dflow,
+	 * but is supposed that ids does not contain commas.
+	 */
 	type NodeId = string;
+	/** A Dflow.Node is an executable unit: can be a Dflow.NodeFunc or a Dflow.NodeGraph */
+	type Node = {
+		id: Dflow.NodeId;
+		name: Dflow.NodeName;
+	};
 	/** A Dflow.Pin can be an input or an output of a node */
 	type Pin = Dflow.NodeId | [nodeId: Dflow.NodeId, position: number];
-	/** Stringified Dflow.Pin */
+	/**
+	 * A Dflow.PinId is composed by a Dflow.NodeId and pin position;
+	 * if position is zero, it is omitted.
+	 */
 	type PinId = Dflow.NodeId | `${Dflow.NodeId},${number}`;
-	/** A Dflow.Pipe connects from a source Dflow.Pin to a target Dflow.Pin */
+	/** A Dflow.Pipe connects from a Dflow.Pin to a Dflow.Pin */
 	type Pipe = {
 		from: Dflow.Pin;
 		to: Dflow.Pin;
 	};
+	type PipeId = [to: Dflow.PinId, from: Dflow.PinId];
 	/** A Dflow.Graph is a collection of nodes and pipes */
 	type Graph = {
-		nodes: {
-			id: Dflow.NodeId;
-			name: Dflow.Name;
-		}[];
+		nodes: Dflow.Node[];
 		pipes: Dflow.Pipe[];
 	};
+	/** A Dflow.Code can hold one or more lines of JavaScript code */
+	type Code = string | string[];
+	/** A Dflow.NodeFunc is a node with some code. */
+	type NodeFunc = {
+		name: Dflow.NodeName;
+		args?: Dflow.Args;
+		code: Dflow.Code;
+	};
 	/** A Dflow.Outs is a list of one or more declared outputs for a node */
-	type Outs = Dflow.Name[];
-	type NodeGraph = Dflow.Node &
-		Dflow.Graph & {
-			outs?: Dflow.Outs;
-		};
+	type Outs = Dflow.OutName[];
+	type NodeGraph = {
+		name: Dflow.NodeName;
+		args?: Dflow.Args;
+		outs?: Dflow.Outs;
+	} & Dflow.Graph;
 }
 type DflowFunc =
 	| typeof Dflow.AsyncFunc
@@ -49,13 +60,41 @@ type DflowFunc =
 	| typeof Dflow.Func
 	| typeof Dflow.GeneratorFunc;
 export declare class Dflow {
-	name: Dflow.Name;
+	name: Dflow.NodeName;
 	args?: Dflow.Args;
 	outs?: Dflow.Outs;
 	/**
 	 * A context to bound the Dflow.Func execution.
-	 *   - key: func name
+	 *   - key: node id or name
 	 *   - value: context, if any
+	 *
+	 * Notice that the key can be a node id or a node name.
+	 * If a context with a node id is found it takes precedence over a context associated to the node name.
+	 *
+	 * @example
+	 * ```ts
+	 * class MyDflow extends Dflow {
+	 *   log(id: Dflow.NodeId, ...args: any[]) {
+	 *     console.log(id, ...args)
+	 *   }
+	 *
+	 *   addNode(name: Dflow.Node["name"], id = crypto.randomUUID()): Dflow.NodeId {
+	 *     this.node.set(id, name);
+	 *     this.context.set(id, { log: this.log.bind(null, id) });
+	 *     return id;
+	 *   }
+	 * }
+	 *
+	 * const dflow = new MyDflow()
+	 *
+	 * dflow.setNodeFunc({
+	 *   name: "hello",
+	 *   code: "this.log('hello world')"
+	 * })
+	 * dflow.addNode("hello")
+	 *
+	 * await dflow.run()
+	 * ```
 	 */
 	context: Map<string, unknown>;
 	func: Map<string, Function>;
@@ -69,16 +108,27 @@ export declare class Dflow {
 	 * class MyDflow extends Dflow {
 	 *   // Override graph Map to get the proper instance type.
 	 *   graph = new Map<Dflow.NodeId, MyDflow>();
+	 *
+	 *   createGraph(
+	 *     nodeId: Dflow.NodeId,
+	 *     nodeGraph: Dflow.NodeGraph | undefined = undefined,
+	 *   ) {
+	 *     if (!nodeGraph) return;
+	 *     if (this.graph.has(nodeId)) return;
+	 *     const graph = new MyDflow(nodeGraph);
+	 *     graph.inherit(this);
+	 *     this.graph.set(nodeId, graph);
+	 *   }
 	 * }
 	 * ```
 	 */
 	graph: Map<string, Dflow>;
-	/** Names of nodes that correspond to args and outs. */
+	/** Names of nodes that correspond to args and outs of a graph. */
 	ioNodes: Set<string>;
 	/**
 	 * Node instances.
-	 *   - key node id
-	 *   - value node name
+	 *   - key: node id
+	 *   - value: node name
 	 *
 	 * @example
 	 * ```ts
@@ -93,6 +143,7 @@ export declare class Dflow {
 	 * ```
 	 */
 	node: Map<string, string>;
+	/** Argument names of a node */
 	nodeArgs: Map<string, Dflow.Args>;
 	nodeGraph: Map<string, Dflow.NodeGraph>;
 	/**
@@ -101,8 +152,8 @@ export declare class Dflow {
 	nodeOuts: Map<string, Dflow.Outs>;
 	/**
 	 * Every output data.
-	 *   - key=pinId, of the related output
-	 *   - value=data
+	 *   - key: pinId, of the related output
+	 *   - value: data
 	 *
 	 * @example
 	 * ```ts
@@ -116,16 +167,13 @@ export declare class Dflow {
 	out: Map<string, unknown>;
 	/**
 	 * Pipe instances.
-	 *  - key=targetId, pipe.to
-	 *  - value=sourceId, pipe.from
+	 *  - key: target pinId, pipe.to
+	 *  - value: source pinId, pipe.from
 	 *
 	 * @example
 	 * ```ts
 	 * const pipes: Dflow.Graph["pipes"] = Array.from(
-	 *   this.pipe.entries(), ([toId, fromId]) => ({
-	 *     from: Dflow.idToPin(fromId),
-	 *     to: Dflow.idToPin(toId),
-	 *   })
+	 *   this.pipe.values(), Dflow.pipeIdToPipe
 	 * )
 	 * ```
 	 */
@@ -134,52 +182,91 @@ export declare class Dflow {
 	/**
 	 * Nodes sorted by level.
 	 */
-	get nodes(): [nodeId: Dflow.NodeId, nodeName: Dflow.Name][];
+	get nodes(): [id: Dflow.NodeId, name: Dflow.NodeName][];
 	/**
-	 * Add a node graph instance.
-	 */
-	addNodeGraph(nodeGraph: Dflow.NodeGraph, nodeId: Dflow.NodeId): void;
-	/**
-	 * Add a node instance.
+	 * Add a node to a graph.
 	 *
 	 * You may want to override this method to provide an id by default.
+	 *
 	 * @example
 	 * ```ts
 	 * class MyDflow extends Dflow {
-	 *   addNode(name: Dflow.Node["name"], id = crypto.randomUUID()): Dflow.NodeId {
-	 *     this.node.set(id, name);
-	 *     return id;
+	 *   addNode(name: Dflow.Node["name"], nodeId = crypto.randomUUID()): Dflow.NodeId {
+	 *     this.node.set(nodeId, name);
+	 *     return nodeId;
 	 *   }
 	 * }
 	 * ```
 	 */
-	addNode(name: Dflow.Node["name"], id: Dflow.NodeId): Dflow.NodeId;
+	addNode(name: Dflow.NodeName, id: Dflow.NodeId): Dflow.NodeId;
 	/**
-	 * Connect from a node output to a node input.
+	 * Create a pipe from a node output to a node input arg.
 	 */
 	addPipe(pipe: Dflow.Pipe): void;
-	argValues(nodeId: Dflow.NodeId): unknown[];
-	hasNode(name: Dflow.Name): boolean;
 	/**
-	 * Inherit funcs, args and contexts; do not override this instance ioNodes.
+	 * Create a graph instance.
 	 */
-	inheritFuncs(dflow: Pick<Dflow, "func" | "context" | "nodeArgs">): void;
-	insert({ nodes, pipes }: Dflow.Graph): void;
-	isBrokenPipe(pipe: Dflow.Pipe): boolean;
-	pipeOfTargetId(targetId: Dflow.PinId): Dflow.Pipe | undefined;
+	createGraph(
+		nodeId: Dflow.NodeId,
+		nodeGraph?: Dflow.NodeGraph | undefined,
+	): void;
+	/**
+	 * Delete a node from graph.
+	 */
+	delNode(nodeId: Dflow.NodeId): void;
+	/**
+	 * Delete a pipe from graph.
+	 */
+	delPipe(to: Dflow.Pipe["to"]): void;
+	/**
+	 * Collect argument values for node instance.
+	 */
+	argValues(nodeId: Dflow.NodeId): unknown[];
+	/**
+	 * Delete nodes and pipes from graph.
+	 *
+	 * When a node is deleted, also the pipes that are connected are deleted.
+	 * Return deleted items graph.
+	 */
+	delete({
+		nodes,
+		pipes,
+	}: Partial<{
+		nodes: {
+			id: Dflow.NodeId;
+		}[];
+		pipes: {
+			to: Dflow.Pin;
+		}[];
+	}>): Dflow.Graph;
+	/**
+	 * Inherit funcs, args and contexts.
+	 *
+	 * Does not override ioNodes.
+	 */
+	inherit(dflow: Pick<Dflow, "func" | "context" | "nodeArgs">): void;
+	insert({ nodes, pipes }: Partial<Dflow.Graph>): void;
+	/**
+	 * Check that node name is available or throw Dflow.Error.NodeOverride
+	 * @internal
+	 */
+	private isAvailableNode;
 	run(): Promise<void>;
 	runFunc(
 		nodeId: Dflow.NodeId,
-		func: Dflow.Func,
-		argValues: unknown[],
+		func?: Dflow.Func | undefined,
 		context?: unknown,
 	): Promise<void>;
-	runGraph(graphId: Dflow.NodeId, graph: Dflow): Promise<void>;
-	setFunc(name: Dflow.Name, func: Dflow.Func, args?: Dflow.Args): void;
-	setNodeArg(name: Dflow.Name): void;
+	runGraph(graphId: Dflow.NodeId, graph?: Dflow | undefined): Promise<void>;
+	runNode(
+		nodeId: Dflow.NodeId,
+		nodeName?: Dflow.NodeName | undefined,
+	): Promise<void>;
+	setFunc(name: Dflow.NodeName, func: Dflow.Func, args?: Dflow.Args): void;
+	setNodeArg(name: Dflow.NodeName): void;
 	setNodeFunc({ name, args, code }: Dflow.NodeFunc): void;
 	setNodeGraph({ name, args, outs, nodes, pipes }: Dflow.NodeGraph): void;
-	setNodeOut(name: Dflow.Name): void;
+	setNodeOut(name: Dflow.NodeName): void;
 	toJSON(): Dflow.NodeGraph;
 	toString(): string;
 	toValue(): Dflow.NodeGraph;
@@ -188,7 +275,7 @@ export declare class Dflow {
 	static GeneratorFunc: Function;
 	static AsyncGeneratorFunc: Function;
 	static funcBody(arg: Dflow.Code): string;
-	static idToPin(id: Dflow.PinId): Dflow.Pin;
+	static pinIdToPin(id: Dflow.PinId): Dflow.Pin;
 	/**
 	 * The level of a node is a number that indicates its position in the graph.
 	 *
@@ -212,6 +299,7 @@ export declare class Dflow {
 	static levelOfNode(nodeId: Dflow.NodeId, pipes: Dflow.Pipe[]): number;
 	static isAsyncFunc(func: unknown): boolean;
 	static isAsyncGeneratorFunc(func: unknown): boolean;
+	static isBrokenPipe(pipe: Dflow.Pipe, node: Dflow["node"]): boolean;
 	static isFunc(func: unknown): boolean;
 	static isGeneratorFunc(func: unknown): boolean;
 	static looksLikeAsyncGeneratorCode(arg: Dflow.Code): boolean;
@@ -221,13 +309,13 @@ export declare class Dflow {
 	static nodeIdsOfPipe({
 		from,
 		to,
-	}: Dflow.Pipe): [sourceNodeId: Dflow.NodeId, targetNodeId: Dflow.NodeId];
+	}: Dflow.Pipe): [source: Dflow.NodeId, target: Dflow.NodeId];
 	static parentNodeIds(
 		nodeId: Dflow.NodeId,
 		pipes: Dflow.Pipe[],
 	): Dflow.NodeId[];
 	static pinToPinId(pin: Dflow.Pin): Dflow.PinId;
-	static positionOfPin(pin: Dflow.Pin): number | undefined;
+	static pipeIdToPipe([to, from]: Dflow.PipeId): Dflow.Pipe;
 	static Error: {
 		BrokenPipe: {
 			new (pipe: Dflow.Pipe): {
@@ -252,7 +340,7 @@ export declare class Dflow {
 			prepareStackTrace?:
 				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
 				| undefined;
-			stackTraceLimit: number /** A Dflow.Code can hold one or more lines of JavaScript code */;
+			stackTraceLimit: number;
 		};
 		NodeExecution: {
 			new (
@@ -284,6 +372,7 @@ export declare class Dflow {
 				nodeName: Dflow.Node["name"],
 				nodeErrorMessage: Error["message"],
 			): string;
+			errorName: string;
 			captureStackTrace(
 				targetObject: object,
 				constructorOpt?: Function | undefined,
@@ -291,7 +380,7 @@ export declare class Dflow {
 			prepareStackTrace?:
 				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
 				| undefined;
-			stackTraceLimit: number /** A Dflow.Code can hold one or more lines of JavaScript code */;
+			stackTraceLimit: number;
 		};
 		NodeNotFound: {
 			new (nodeId: Dflow.NodeId): {
@@ -309,6 +398,7 @@ export declare class Dflow {
 				stack?: string | undefined;
 			};
 			message(nodeId: Dflow.NodeId): string;
+			errorName: string;
 			captureStackTrace(
 				targetObject: object,
 				constructorOpt?: Function | undefined,
@@ -316,7 +406,7 @@ export declare class Dflow {
 			prepareStackTrace?:
 				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
 				| undefined;
-			stackTraceLimit: number /** A Dflow.Code can hold one or more lines of JavaScript code */;
+			stackTraceLimit: number;
 		};
 		NodeOverride: {
 			new (name: Dflow.Node["name"]): {
@@ -333,7 +423,8 @@ export declare class Dflow {
 				message: string;
 				stack?: string | undefined;
 			};
-			message(name: Dflow.Node["name"]): string;
+			message(name: Dflow.NodeName): string;
+			errorName: string;
 			captureStackTrace(
 				targetObject: object,
 				constructorOpt?: Function | undefined,
@@ -341,7 +432,7 @@ export declare class Dflow {
 			prepareStackTrace?:
 				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
 				| undefined;
-			stackTraceLimit: number /** A Dflow.Code can hold one or more lines of JavaScript code */;
+			stackTraceLimit: number;
 		};
 	};
 }
