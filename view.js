@@ -31,6 +31,47 @@ class FlowView extends HTMLElement {
 				}
 			</style>
 			<div><slot></slot></div>
+			<fv-selectedarea x="100" y="100" w="100" h="100"></fv-selectedarea>
+		`;
+  };
+  static SelectedArea = class FlowViewSelectedArea extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" });
+      this.shadowRoot?.appendChild(
+        FlowView.SelectedArea.template.content.cloneNode(true)
+      );
+      this.addEventListener("pointerdown", this);
+    }
+    attributeChangedCallback(name, _oldValue, value) {
+      if (!isNaN(parseInt(value))) {
+        if (name === "x")
+          this.style.left = `${value}px`;
+        if (name === "y")
+          this.style.top = `${value}px`;
+        if (name === "w")
+          this.style.width = `${value}px`;
+        if (name === "h")
+          this.style.height = `${value}px`;
+      }
+    }
+    handleEvent(event) {
+      if (event instanceof DragEvent) {
+        console.log(event);
+      }
+    }
+    static get observedAttributes() {
+      return ["x", "y", "w", "h"];
+    }
+    static tagName = "fv-selectedarea";
+    static template = html`
+			<style>
+				:host {
+					position: absolute;
+					background-color: magenta;
+					border: 1px solid black;
+				}
+			</style>
 		`;
   };
   static Node = class FlowViewNode extends HTMLElement {
@@ -83,7 +124,7 @@ class FlowView extends HTMLElement {
       static eventName = "fv-nodeselected";
     };
   };
-  static customElements = (/* @__PURE__ */ new Map()).set(FlowView.Canvas.tagName, FlowView.Canvas).set(FlowView.Node.tagName, FlowView.Node);
+  static customElements = (/* @__PURE__ */ new Map()).set(FlowView.Canvas.tagName, FlowView.Canvas).set(FlowView.Node.tagName, FlowView.Node).set(FlowView.SelectedArea.tagName, FlowView.SelectedArea);
   static defineCustomElements() {
     for (let [tagName, CustomElement] of FlowView.customElements.entries())
       if (!customElements.get(tagName))
