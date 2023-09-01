@@ -1,4 +1,3 @@
-/// <reference types="node" />
 /** https://github.com/fibo/dflow @license MIT */
 export declare namespace Dflow {
 	/** A Dflow.Func is a function, an async function, a generator or an async generator */
@@ -249,6 +248,7 @@ export declare class Dflow {
 	 * @internal
 	 */
 	private isAvailableNode;
+	parentNodeIds(nodeId: Dflow.NodeId): Generator<Dflow.NodeId>;
 	run(): Promise<void>;
 	runFunc(
 		nodeId: Dflow.NodeId,
@@ -281,7 +281,6 @@ export declare class Dflow {
 	 * ```
 	 */
 	static funcBody(code: Dflow.Code): string;
-	static pinIdToPin(id: Dflow.PinId): Dflow.Pin;
 	/**
 	 * The level of a node is a number that indicates its position in the graph.
 	 *
@@ -312,6 +311,7 @@ export declare class Dflow {
 	static looksLikeAsyncCode(arg: Dflow.Code): boolean;
 	static looksLikeGeneratorCode(arg: Dflow.Code): boolean;
 	static nodeIdOfPin(pin: Dflow.Pin): Dflow.NodeId;
+	static nodeIdOfPinId(pinId: Dflow.PinId): Dflow.NodeId;
 	static nodeIdsOfPipe({
 		from,
 		to,
@@ -320,6 +320,7 @@ export declare class Dflow {
 		nodeId: Dflow.NodeId,
 		pipes: Dflow.Pipe[],
 	): Dflow.NodeId[];
+	static pinIdToPin(id: Dflow.PinId): Dflow.Pin;
 	static pinToPinId(pin: Dflow.Pin): Dflow.PinId;
 	static pipeIdToPipe([to, from]: Dflow.PipeId): Dflow.Pipe;
 	static Error: {
@@ -340,14 +341,6 @@ export declare class Dflow {
 				cause?: unknown;
 			};
 			message(pipe: Dflow.Pipe): string;
-			captureStackTrace(
-				targetObject: object,
-				constructorOpt?: Function | undefined,
-			): void;
-			prepareStackTrace?:
-				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
-				| undefined;
-			stackTraceLimit: number;
 		};
 		NodeExecution: {
 			new (
@@ -381,14 +374,6 @@ export declare class Dflow {
 				nodeErrorMessage: Error["message"],
 			): string;
 			errorName: string;
-			captureStackTrace(
-				targetObject: object,
-				constructorOpt?: Function | undefined,
-			): void;
-			prepareStackTrace?:
-				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
-				| undefined;
-			stackTraceLimit: number;
 		};
 		NodeNotFound: {
 			new (nodeId: Dflow.NodeId): {
@@ -408,14 +393,6 @@ export declare class Dflow {
 			};
 			message(nodeId: Dflow.NodeId): string;
 			errorName: string;
-			captureStackTrace(
-				targetObject: object,
-				constructorOpt?: Function | undefined,
-			): void;
-			prepareStackTrace?:
-				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
-				| undefined;
-			stackTraceLimit: number;
 		};
 		NodeOverride: {
 			new (name: Dflow.Node["name"]): {
@@ -435,14 +412,6 @@ export declare class Dflow {
 			};
 			message(name: Dflow.NodeName): string;
 			errorName: string;
-			captureStackTrace(
-				targetObject: object,
-				constructorOpt?: Function | undefined,
-			): void;
-			prepareStackTrace?:
-				| ((err: Error, stackTraces: NodeJS.CallSite[]) => any)
-				| undefined;
-			stackTraceLimit: number;
 		};
 	};
 }

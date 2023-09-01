@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "outDir": ".",
+    "tsBuildInfoFile": "temp/tsconfig.view.tsbuildinfo"
+  },
+  "extends": "./tsconfig.json",
+  "files": ["view.ts"]
+}

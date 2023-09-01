@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>dflow</title>
+  </head>
+  <body>
+    <script type="module">
+      import { Canvas, Node } from "./view.js";
+      customElements.define("df-canvas", Canvas);
+      customElements.define("df-node", Node);
+    </script>
+
+    <df-canvas>
+      <df-node draggable="true"></df-node>
+    </df-canvas>
+  </body>
+</html>
