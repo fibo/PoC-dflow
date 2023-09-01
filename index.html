@@ -3,16 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <title>dflow</title>
+    <style>
+      body {
+        padding: 50px;
+      }
+    </style>
   </head>
   <body>
     <script type="module">
-      import { Canvas, Node } from "./view.js";
-      customElements.define("df-canvas", Canvas);
-      customElements.define("df-node", Node);
+      import { FlowView } from "./view.js";
+      FlowView.defineCustomElements();
     </script>
 
-    <df-canvas>
-      <df-node draggable="true"></df-node>
-    </df-canvas>
+    <fv-canvas>
+      <fv-node x="50" y="50"></fv-node>
+    </fv-canvas>
   </body>
 </html>
