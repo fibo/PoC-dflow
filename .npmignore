@@ -1,1 +1,3 @@
 test.ts
+tsconfig.*
+server.js

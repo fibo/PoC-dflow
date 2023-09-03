@@ -1,22 +1,24 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>dflow</title>
-    <style>
-      body {
-        padding: 50px;
-      }
-    </style>
-  </head>
-  <body>
-    <script type="module">
-      import { FlowView } from "./view.js";
-      FlowView.defineCustomElements();
-    </script>
+	<head>
+		<meta charset="UTF-8" />
+		<title>dflow</title>
+		<style>
+			body {
+				padding: 50px;
+			}
+		</style>
+	</head>
+	<body>
+		<script type="module">
+			import { FlowView } from "./view.js"
+			FlowView.defineCustomElements()
+		</script>
 
-    <fv-canvas>
-      <fv-node x="50" y="50"></fv-node>
-    </fv-canvas>
-  </body>
+		<flow-view>
+			<fv-canvas>
+				<fv-node nodeid="abc" x="50" y="50">my node</fv-node>
+			</fv-canvas>
+		</flow-view>
+	</body>
 </html>

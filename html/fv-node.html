@@ -1,0 +1,33 @@
+<style>
+	:host {
+		position: absolute;
+	}
+	:host > div {
+		position: relative;
+		border: 1px solid;
+		display: flex;
+		flex-direction: column;
+	}
+	.pins {
+		display: flex;
+		justify-content: space-between;
+		height: 10px;
+	}
+	.body {
+		padding: 1em;
+		border-top: 1px solid;
+		border-bottom: 1px solid;
+		user-select: none;
+	}
+</style>
+<div>
+	<div class="args pins">
+		<fv-pin></fv-pin>
+		<fv-pin></fv-pin>
+		<fv-pin></fv-pin>
+	</div>
+	<div class="body"><slot></slot></div>
+	<div class="outs pins">
+		<fv-pin draggable="true"></fv-pin>
+	</div>
+</div>
